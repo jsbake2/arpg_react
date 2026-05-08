@@ -362,9 +362,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     install_parser.add_argument(
         "--theme",
-        choices=("neutral", "diablo"),
-        default="diablo",
-        help="theme baked into the launcher (default: neutral)",
+        choices=("neutral", "diablo", "azurite"),
+        default=None,
+        help="bake a fixed theme into the launcher (default: theme follows the game picked in the launch dialog)",
     )
     gen_parser = sub.add_parser(
         "gen-sounds", help="synthesize a bell/gong .wav for the pixel-alert sound"

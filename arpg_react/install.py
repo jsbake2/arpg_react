@@ -146,7 +146,7 @@ def _clean_legacy_icon_files() -> None:
             pass
 
 
-def install_desktop_entry(theme: str = "diablo") -> Path:
+def install_desktop_entry(theme: str | None = None) -> Path:
     icon_src, ext = _find_icon_source()
 
     _clean_legacy_icon_files()
@@ -162,7 +162,14 @@ def install_desktop_entry(theme: str = "diablo") -> Path:
     desktop_path = apps_dir / DESKTOP_ENTRY_NAME
 
     python_exe = sys.executable
-    exec_line = f"{python_exe} -m arpg_react app --theme {theme}"
+    # Theme follows the game picked in the launch dialog. Pass --theme
+    # only when the user explicitly opts into a different palette
+    # (e.g. NEUTRAL dev theme). Without this, picking POE2 in the
+    # dialog correctly switches to the AZURITE theme, etc.
+    if theme:
+        exec_line = f"{python_exe} -m arpg_react app --theme {theme}"
+    else:
+        exec_line = f"{python_exe} -m arpg_react app"
 
     contents = dedent(
         f"""\
@@ -184,7 +191,7 @@ def install_desktop_entry(theme: str = "diablo") -> Path:
     return desktop_path
 
 
-def cmd_install(theme: str = "diablo") -> int:
+def cmd_install(theme: str | None = None) -> int:
     try:
         path = install_desktop_entry(theme=theme)
     except Exception as exc:  # noqa: BLE001
@@ -196,5 +203,8 @@ def cmd_install(theme: str = "diablo") -> int:
     print(f"icon sizes        → {', '.join(f'{s}x{s}' for s in ICON_SIZES_PNG)} (PNG)")
     print()
     print("'ARPG React' should now appear in your application launcher.")
-    print(f"theme baked in: {theme}  (re-run 'install' to change)")
+    if theme:
+        print(f"theme baked in: {theme}  (re-run 'install' to change)")
+    else:
+        print("theme follows the game picked in the launch dialog.")
     return 0
