@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arpg-react"
+version = "0.1.0dev0"
+description = "ARPG React: Diablo 4 + Path of Exile 2 companion (event timers, rule engine, auto-cast)"
+readme = "PROJECT.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Jason Baker" }]
+dependencies = [
+  "httpx>=0.27",
+  "pydantic>=2.6",
+  "Pillow>=10.0",
+  "pynput>=1.7",
+  "pyttsx3>=2.90",
+  "PyQt6>=6.6",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+  "freezegun>=1.4",
+  "respx>=0.21",
+]
+
+[project.scripts]
+arpg-react = "arpg_react.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["arpg_react*"]
+
+[tool.setuptools.package-data]
+arpg_react = [
+  "resources/sounds/*.wav",
+  "resources/*.svg",
+  "resources/*.png",
+  "resources/*.ico",
+  "resources/classes/*.svg",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

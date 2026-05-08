@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="currentColor">
+  <!-- Stylized leaf with spiraling spirit veins -->
+  <g stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" fill="currentColor">
+    <!-- Leaf body — pointed top, rounded bottom -->
+    <path d="M 32 6
+             Q 14 16 14 36
+             Q 14 50 32 56
+             Q 50 50 50 36
+             Q 50 16 32 6 Z"
+          stroke-width="2.5"/>
+    <!-- Central vein -->
+    <path d="M 32 8 L 32 54"
+          fill="none" stroke="#0a0604" stroke-width="2"/>
+    <!-- Side veins curving up -->
+    <path d="M 32 22 Q 24 26 20 32 M 32 22 Q 40 26 44 32"
+          fill="none" stroke="#0a0604" stroke-width="1.5"/>
+    <path d="M 32 36 Q 24 40 22 46 M 32 36 Q 40 40 42 46"
+          fill="none" stroke="#0a0604" stroke-width="1.5"/>
+    <!-- Spiral at base -->
+    <path d="M 32 50 Q 28 52 30 48 Q 33 48 32 51"
+          fill="none" stroke="#0a0604" stroke-width="1.2"/>
+  </g>
+</svg>

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="currentColor">
+  <!-- Crossed axes — heavy battle silhouette -->
+  <g stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" fill="currentColor">
+    <!-- Left axe shaft -->
+    <line x1="14" y1="14" x2="50" y2="50" stroke-width="3"/>
+    <!-- Left axe head -->
+    <path d="M 13 13 L 22 6 Q 30 6 32 14 Q 30 22 22 22 Z"/>
+    <!-- Right axe shaft -->
+    <line x1="50" y1="14" x2="14" y2="50" stroke-width="3"/>
+    <!-- Right axe head -->
+    <path d="M 51 13 L 42 6 Q 34 6 32 14 Q 34 22 42 22 Z"/>
+    <!-- Pommel where they cross -->
+    <circle cx="32" cy="32" r="3.5" fill="currentColor"/>
+  </g>
+</svg>

@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARPG React — Rule Editor</title>
+<link rel="icon" type="image/x-icon" href="/brand/favicon.ico">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand brand-row">
+      <img src="/brand/symbol_red_64.png" alt="" class="brand-glyph-small">
+      <div>
+        <div class="brand-title">ARPG REACT</div>
+        <div class="brand-sub"><span id="gameTag" class="game-tag">…</span> · <span id="userTag">…</span></div>
+      </div>
+    </div>
+    <div class="build-control">
+      <label>BUILD</label>
+      <select id="buildPicker"></select>
+      <button id="newBuildBtn" class="btn ghost" title="New build">+ NEW</button>
+      <button id="deleteBuildBtn" class="btn ghost danger" title="Delete current build">DEL</button>
+      <a href="/" class="btn ghost" title="Switch game">↺ GAMES</a>
+      <button id="logoutBtn" class="btn ghost" title="Sign out">SIGN OUT</button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="build">BUILD</button>
+    <button class="tab" data-tab="skills">SKILLS</button>
+    <button class="tab" data-tab="rules">RULES</button>
+    <button class="tab" data-tab="potion">POTION</button>
+    <button class="tab" data-tab="profile">PROFILE</button>
+  </nav>
+
+  <main>
+    <section class="tabpanel active" data-tab="build">
+      <h2>Identity</h2>
+      <p class="hint">Skill-bar slot positions, orb fill levels, and boss / mount detection are auto-calibrated against the in-game UI — no per-build pixel coordinates or colors are needed here. Just rules.</p>
+      <div class="grid two">
+        <label>Name <input type="text" id="b_name" placeholder="warlock_dread_claws"></label>
+        <label>Class
+          <select id="b_class">
+            <option value="">— none —</option>
+          </select>
+        </label>
+      </div>
+      <label class="full">Description <input type="text" id="b_description" placeholder="Warlock — Dread Claws"></label>
+      <label class="full">Build URL <input type="url" id="b_url" placeholder="https://mobalytics.gg/..."></label>
+      <label>Default jitter %
+        <input type="number" id="b_jitter" min="0" max="100" step="0.5" value="17">
+      </label>
+    </section>
+
+    <section class="tabpanel" data-tab="skills">
+      <h2>Skills <span class="muted">(per-slot timing)</span></h2>
+      <p class="hint">All defaults are <strong>0 (instant)</strong> — leave them alone for skills with no cast or cooldown. Set non-zero values when you want the engine to wait the right amount of time:
+        <br><strong>cast</strong> — animation time after the press; combo steps queued after this slot wait at least this long.
+        <br><strong>recast</strong> — minimum gap before the same slot can fire again (per-skill GCD).
+        <br><strong>active</strong> — buff duration; informational for now.</p>
+      <div id="skillsList"></div>
+    </section>
+
+    <section class="tabpanel" data-tab="rules">
+      <h2>Rules <span class="muted">(top-down precedence)</span></h2>
+      <p class="hint">Each tick, rules are evaluated top-to-bottom. First rule whose conditions are met fires; rules below it skip. <strong>Drag the ☰ handle</strong> to reorder.</p>
+      <div id="rulesList"></div>
+      <button class="btn primary" id="addRuleBtn">+ ADD RULE</button>
+    </section>
+
+    <section class="tabpanel" data-tab="potion">
+      <h2>Potion</h2>
+      <p class="hint">Hotkey + auto-trigger threshold. The daemon presses this key when health drops below the configured percentage (subject to potion cooldown).</p>
+      <label>Hotkey
+        <select id="p_hotkey">
+          <option>Q</option><option>1</option><option>2</option><option>3</option>
+          <option>4</option><option>F1</option><option>F2</option>
+        </select>
+      </label>
+      <label>Trigger when health below
+        <input type="number" id="p_threshold" min="0" max="1" step="0.05" value="0.5">
+        <span class="muted">(0..1)</span>
+      </label>
+      <label>Cooldown (seconds)
+        <input type="number" id="p_cooldown" min="1" max="120" step="1" value="30">
+      </label>
+      <label>
+        <input type="checkbox" id="p_enabled"> Enabled
+      </label>
+    </section>
+
+    <section class="tabpanel" data-tab="profile">
+      <h2>Profile <span class="muted">(per-user, per-game environment)</span></h2>
+      <p class="hint">Settings here are <strong>not</strong> tied to any one build — they describe your machine + key bindings for this game and are reused across every build. The daemon translates rule slot names through the keymap before pressing keys, and scales detector + OCR coordinates by your resolution and UI scale.</p>
+
+      <h3 class="section-h">Display</h3>
+      <p class="hint">Match the values to your actual game window. UI scale is the in-game slider (D4 → Options → Gameplay → Interface Size; POE2 → Options → UI → Scale).</p>
+      <div class="grid two">
+        <label>Resolution width
+          <input type="number" id="prof_screen_w" min="640" max="7680" step="1" placeholder="2560">
+        </label>
+        <label>Resolution height
+          <input type="number" id="prof_screen_h" min="480" max="4320" step="1" placeholder="1440">
+        </label>
+        <label>UI scale
+          <input type="number" id="prof_ui_scale" min="0.5" max="2.0" step="0.05" placeholder="1.0">
+        </label>
+        <label>&nbsp;
+          <button type="button" class="btn ghost" id="prof_autodetect">DETECT FROM SCREEN</button>
+        </label>
+      </div>
+
+      <h3 class="section-h">Keymap</h3>
+      <p class="hint">Slot names are the labels rules and skills are written against. The <em>actual key</em> is what the daemon presses when a rule fires for that slot. Defaults are identity (e.g. <code>Q → q</code>); if you bound your skill to <code>1</code> in-game instead of <code>Q</code>, change the right column to <code>1</code>.</p>
+      <div id="keymapList"></div>
+
+      <div class="profile-actions">
+        <button type="button" class="btn primary" id="prof_save">SAVE PROFILE</button>
+        <span id="prof_status" class="muted"></span>
+      </div>
+    </section>
+  </main>
+
+  <footer class="actionbar">
+    <div class="status">
+      <span id="statusText">no changes</span>
+    </div>
+    <div class="actions">
+      <input type="file" id="importFile" accept=".json" style="display:none">
+      <button class="btn ghost" id="importBtn">IMPORT</button>
+      <button class="btn ghost" id="exportBtn">EXPORT JSON</button>
+      <button class="btn primary" id="saveBtn">SAVE</button>
+    </div>
+  </footer>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

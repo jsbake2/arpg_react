@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="currentColor">
+  <!-- Spiraling flame / arcane orb -->
+  <g stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" fill="currentColor">
+    <!-- Outer flame petals -->
+    <path d="M 32 6
+             Q 22 12 18 22
+             Q 16 32 22 40
+             Q 14 36 12 28
+             Q 14 18 24 12
+             Q 30 8 32 6 Z"
+          stroke-width="2"/>
+    <path d="M 32 6
+             Q 42 12 46 22
+             Q 48 32 42 40
+             Q 50 36 52 28
+             Q 50 18 40 12
+             Q 34 8 32 6 Z"
+          stroke-width="2"/>
+    <!-- Inner orb -->
+    <circle cx="32" cy="38" r="11" stroke-width="2.5"/>
+    <!-- Central highlight (cutout) -->
+    <circle cx="32" cy="38" r="5" fill="#0a0604"/>
+    <!-- Lightning bolt down center -->
+    <path d="M 30 32 L 33 38 L 30 38 L 33 44"
+          fill="none" stroke="#0a0604" stroke-width="1.8"/>
+  </g>
+</svg>

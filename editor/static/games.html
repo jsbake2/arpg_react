@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARPG React — Pick a Game</title>
+<link rel="icon" type="image/x-icon" href="/brand/favicon.ico">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body class="auth-body">
+  <header class="games-topbar">
+    <div class="brand-row">
+      <img src="/brand/symbol_red_64.png" alt="" class="brand-glyph-small">
+      <div>
+        <div class="brand-title">ARPG REACT</div>
+        <div class="brand-sub" id="userLabel">…</div>
+      </div>
+    </div>
+    <button id="logoutBtn" class="btn ghost">SIGN OUT</button>
+  </header>
+
+  <main class="games-grid">
+    <a class="game-tile game-d4" href="/editor?game=d4">
+      <svg viewBox="0 0 64 64" class="game-icon" aria-hidden="true">
+        <!-- Diablo-style pentagram -->
+        <defs>
+          <linearGradient id="d4grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#e7c87a"/>
+            <stop offset="100%" stop-color="#c9a14a"/>
+          </linearGradient>
+        </defs>
+        <circle cx="32" cy="32" r="28" fill="none" stroke="url(#d4grad)" stroke-width="2.5"/>
+        <polygon points="32,8 39.05,28.45 60.94,28.45 43.25,41.1 50.3,61.55 32,48.9 13.7,61.55 20.75,41.1 3.06,28.45 24.95,28.45"
+                 fill="none" stroke="url(#d4grad)" stroke-width="2"
+                 transform="scale(.7) translate(13.7, 13.7)"/>
+        <circle cx="32" cy="32" r="3.5" fill="#7a1f1f"/>
+      </svg>
+      <div class="game-label">DIABLO IV</div>
+      <div class="game-sub">Sanctuary · Helltides · Rule engine</div>
+    </a>
+
+    <a class="game-tile game-poe2" href="/editor?game=poe2">
+      <svg viewBox="0 0 64 64" class="game-icon" aria-hidden="true">
+        <defs>
+          <linearGradient id="poe2grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#5cd0e0"/>
+            <stop offset="100%" stop-color="#1e6889"/>
+          </linearGradient>
+        </defs>
+        <!-- POE2-style stylized blade/bow -->
+        <path d="M32 6 L36 28 L58 32 L36 36 L32 58 L28 36 L6 32 L28 28 Z"
+              fill="url(#poe2grad)" stroke="#a8e0ec" stroke-width="1.5"/>
+        <circle cx="32" cy="32" r="4" fill="#06222e" stroke="#a8e0ec" stroke-width="1.5"/>
+      </svg>
+      <div class="game-label">PATH OF EXILE 2</div>
+      <div class="game-sub">Wraeclast · Per-client keymaps · Calibrating</div>
+    </a>
+  </main>
+
+  <script>
+    fetch("/api/me").then(r => r.json()).then(b => {
+      document.getElementById("userLabel").textContent = "Signed in as " + b.user;
+    });
+    document.getElementById("logoutBtn").addEventListener("click", async () => {
+      await fetch("/api/logout", {method: "POST"});
+      window.location.href = "/";
+    });
+  </script>
+</body>
+</html>

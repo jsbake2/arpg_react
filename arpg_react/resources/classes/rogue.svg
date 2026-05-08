@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="currentColor">
+  <!-- Crossed daggers -->
+  <g stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" fill="currentColor">
+    <!-- Dagger 1: tip at top-right, hilt at bottom-left -->
+    <g transform="rotate(-45 32 32)">
+      <!-- Blade -->
+      <path d="M 32 8 L 30 38 L 34 38 Z" stroke-width="1.5"/>
+      <!-- Crossguard -->
+      <rect x="26" y="38" width="12" height="3" rx="1"/>
+      <!-- Grip -->
+      <rect x="30.5" y="41" width="3" height="12"/>
+      <!-- Pommel -->
+      <circle cx="32" cy="55" r="2.5"/>
+    </g>
+    <!-- Dagger 2: tip at top-left, hilt at bottom-right -->
+    <g transform="rotate(45 32 32)">
+      <path d="M 32 8 L 30 38 L 34 38 Z" stroke-width="1.5"/>
+      <rect x="26" y="38" width="12" height="3" rx="1"/>
+      <rect x="30.5" y="41" width="3" height="12"/>
+      <circle cx="32" cy="55" r="2.5"/>
+    </g>
+  </g>
+</svg>
