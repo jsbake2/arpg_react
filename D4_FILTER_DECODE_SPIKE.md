@@ -61,12 +61,19 @@ against, you can't tell which bytes mean what.
 
 ### Filter D — Multiple Rules, Different Actions
 
+D4's recolor takes a hex color. Use the **exact** hex codes below so
+the bytes show up cleanly in the decoded output and are easy to diff
+against the rest of the filter.
+
 1. **New Filter** → name it `SPIKE_D_MULTI_RULE`.
 2. Add three rules:
-   - **Rule 1:** Hide — Item Type = Sword
-   - **Rule 2:** Recolor (yellow/gold) — Rarity = Legendary
-   - **Rule 3:** Show — Greater Affixes ≥ 1
+   - **Rule 1:** Hide — Item Type = Sword (no color involved)
+   - **Rule 2:** Recolor `#FFD700` (CSS "gold") — Rarity = Legendary
+   - **Rule 3:** Recolor `#FF3030` (a clear red) — Greater Affixes ≥ 1
 3. Export. Save.
+
+The picked hexes give us byte sequences `FF D7 00` and `FF 30 30` —
+distinctive enough to locate the color field in the decoded output.
 
 ### Filter E — Affix Conditions (the real test)
 
@@ -111,7 +118,7 @@ string:
 string:
 <paste>
 
-=== Filter D (3 rules, mixed actions) ===
+=== Filter D (3 rules, mixed actions: Hide Sword + Recolor #FFD700 Legendary + Recolor #FF3030 GA≥1) ===
 string:
 <paste>
 
