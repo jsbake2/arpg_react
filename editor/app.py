@@ -37,10 +37,19 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+# Default to an XDG-friendly per-user path so a fresh deploy works without
+# touching the source. Production overrides via ARPG_EDITOR_DB or the legacy
+# D4_EDITOR_DB env var (currently set in the systemd unit on the live host).
+_default_data_root = Path(
+    os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")
+)
 DB_PATH = Path(
     os.environ.get(
         "ARPG_EDITOR_DB",
-        os.environ.get("D4_EDITOR_DB", "/home/jbaker/d4-rule-editor-data/builds.db"),
+        os.environ.get(
+            "D4_EDITOR_DB",
+            str(_default_data_root / "arpg-react-editor" / "builds.db"),
+        ),
     )
 )
 STATIC_DIR = Path(__file__).resolve().parent / "static"

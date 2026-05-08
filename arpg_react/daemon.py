@@ -32,7 +32,12 @@ from arpg_react.context import (
     INPUT_SUPPRESSED,
     OverrideMode,
 )
-from arpg_react.editor_sync import password_from_env, sync_once
+from arpg_react.editor_sync import (
+    load_cached_profile,
+    password_from_env,
+    sync_once,
+    sync_profile,
+)
 from arpg_react.hotkey import HotkeyController
 from arpg_react.ipc import (
     BuildState,
@@ -116,6 +121,16 @@ def run(
     )
     scheduler = AlertScheduler(events_config=config.events)
     input_controller = InputController()
+
+    # Apply the cached per-user keymap before the engine ever fires, so the
+    # first press already routes through the user's bindings (Matt's `4 → d`,
+    # `R → middle`, etc.) instead of identity. The editor-sync loop refreshes
+    # this whenever a newer profile lands. Daemon is D4-only today; generalise
+    # the game arg when POE2 detection is wired.
+    _daemon_game = "d4"
+    cached_profile = load_cached_profile(_daemon_game)
+    if cached_profile and cached_profile.get("keymap"):
+        input_controller.set_keymap(cached_profile["keymap"])
 
     active_build: BuildV2 = load_or_create_build_v2(config.current_build, builds_dir)
     context_detector = ContextDetector(
@@ -289,8 +304,11 @@ def run(
             state["override"] = order[(idx + 1) % len(order)]
             log.info("override cycled → %s", state["override"].value)
         elif cmd == "sync_builds":
-            # Pull fresh from the editor.
+            # Pull fresh from the editor — builds first, then profile.
             changed = sync_once(config.editor_url, builds_dir)
+            new_profile = sync_profile(config.editor_url, _daemon_game)
+            if new_profile and new_profile.get("keymap"):
+                input_controller.set_keymap(new_profile["keymap"])
             # Always re-check the active build on disk vs in-memory, even
             # when sync wrote nothing — the file may already match the
             # server (e.g. an earlier auto-poll round wrote it) but the

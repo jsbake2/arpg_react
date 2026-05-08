@@ -84,3 +84,52 @@ def sync_once(url: str, builds_dir: Path, password: str | None = None) -> int:
         log.warning("editor_sync: %s", exc)
         return 0
     return changed
+
+
+# ---- per-user profile (display + keymap) sync ------------------------------
+
+def _profile_cache_path(game: str) -> Path:
+    return Path.home() / ".config" / "arpg_react" / f"profile_{game}.json"
+
+
+def sync_profile(url: str, game: str, password: str | None = None) -> dict | None:
+    """Pull /api/profile?game=<g> from the editor backend, cache to disk,
+    and return the profile dict. Returns None on any failure (and the
+    daemon falls back to whatever is on disk via load_cached_profile)."""
+    if password is None:
+        password = password_from_env()
+    if not password:
+        return None
+    if not url.endswith("/"):
+        url = url + "/"
+
+    try:
+        with httpx.Client(timeout=10) as client:
+            r = client.get(
+                urljoin(url, "api/profile"),
+                params={"game": game},
+                auth=("user", password),
+            )
+            r.raise_for_status()
+            payload = r.json()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("editor_sync: profile fetch failed: %s", exc)
+        return None
+
+    cache = _profile_cache_path(game)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(json.dumps(payload, indent=2, sort_keys=True))
+    return payload
+
+
+def load_cached_profile(game: str) -> dict | None:
+    """Read the on-disk profile cache without any network call. Used at
+    daemon startup so the keymap is in place before the first sync runs."""
+    cache = _profile_cache_path(game)
+    if not cache.exists():
+        return None
+    try:
+        return json.loads(cache.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        log.warning("editor_sync: bad profile cache at %s: %s", cache, exc)
+        return None
