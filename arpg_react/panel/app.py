@@ -454,26 +454,15 @@ def _resolve_theme(theme_name: str | None, game: str) -> Theme:
     return GAME_THEME.get(game, DIABLO)
 
 
-def run_panel(
+def run_panel_with_app(
+    app: QtWidgets.QApplication,
     socket_path: Path,
     theme_name: str | None = None,
     game: str | None = None,
 ) -> int:
-    """Launch the panel.
-
-    `game` selects layout + default theme. If None, a modal dialog asks
-    the user. Pass an explicit `theme_name` to override the per-game
-    default (mostly useful for the NEUTRAL dev palette).
-    """
-    app = QtWidgets.QApplication(sys.argv)
-    app.setApplicationName("arpg-react")
-    app.setApplicationDisplayName("ARPG React")
-    app.setDesktopFileName("arpg-react")
-
-    icon_path = _bundled_icon_path()
-    if icon_path is not None:
-        app.setWindowIcon(QtGui.QIcon(str(icon_path)))
-
+    """Same as `run_panel` but reuses a QApplication created by the
+    caller. Used by the launcher, which needs the QApplication up
+    early to host the game-select dialog before spawning the daemon."""
     if game is None:
         game = prompt_for_game(app)
         if game is None:
@@ -485,3 +474,20 @@ def run_panel(
     win = PanelWindow(theme, socket_path, game)
     win.show_and_start()
     return app.exec()
+
+
+def run_panel(
+    socket_path: Path,
+    theme_name: str | None = None,
+    game: str | None = None,
+) -> int:
+    """Standalone panel entry. Creates its own QApplication. Used by
+    `arpg-react panel` (no daemon orchestration)."""
+    app = QtWidgets.QApplication(sys.argv)
+    app.setApplicationName("arpg-react")
+    app.setApplicationDisplayName("ARPG React")
+    app.setDesktopFileName("arpg-react")
+    icon_path = _bundled_icon_path()
+    if icon_path is not None:
+        app.setWindowIcon(QtGui.QIcon(str(icon_path)))
+    return run_panel_with_app(app, socket_path, theme_name=theme_name, game=game)
