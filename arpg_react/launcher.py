@@ -48,6 +48,36 @@ def _daemon_alive(socket_path: Path) -> bool:
     return True
 
 
+def _read_daemon_game(socket_path: Path) -> str | None:
+    """Read the game marker the daemon writes next to its socket. None if
+    no marker (older daemon, or write failed)."""
+    marker = socket_path.parent / "game"
+    try:
+        return marker.read_text().strip() or None
+    except OSError:
+        return None
+
+
+def _kill_running_daemon(socket_path: Path) -> None:
+    """SIGTERM any `python -m arpg_react run` matching this socket and
+    wait for the socket to disappear. Falls back to SIGKILL after a
+    short grace period."""
+    deadline = time.monotonic() + DAEMON_SHUTDOWN_TIMEOUT_S
+    subprocess.run(["pkill", "-TERM", "-f", "arpg_react.*run"], check=False)
+    while time.monotonic() < deadline:
+        if not _daemon_alive(socket_path):
+            break
+        time.sleep(0.1)
+    else:
+        subprocess.run(["pkill", "-KILL", "-f", "arpg_react.*run"], check=False)
+    # Clean up the stale socket if pkill missed it.
+    try:
+        socket_path.unlink(missing_ok=True)
+        (socket_path.parent / "game").unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
 def _wait_for_daemon(socket_path: Path, timeout: float) -> bool:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -112,12 +142,23 @@ def run_app(
     spawned: subprocess.Popen | None = None
 
     if _daemon_alive(socket_path):
-        log.warning(
-            "daemon already running at %s — attaching as-is. If it was "
-            "spawned for a different game, builds + detection will be "
-            "wrong. `pkill -f 'arpg_react.*run'` and relaunch to fix.",
-            socket_path,
-        )
+        running_game = _read_daemon_game(socket_path)
+        if running_game and running_game != game:
+            log.warning(
+                "daemon at %s was spawned for game=%s, but you picked %s — "
+                "killing it and respawning",
+                socket_path, running_game, game,
+            )
+            _kill_running_daemon(socket_path)
+            spawned = _spawn_daemon(game=game)
+            if not _wait_for_daemon(socket_path, DAEMON_BOOT_TIMEOUT_S):
+                log.error("respawned daemon did not come up within %ss", DAEMON_BOOT_TIMEOUT_S)
+                return 1
+        else:
+            log.info(
+                "daemon already running at %s for game=%s — attaching",
+                socket_path, running_game or "<unknown>",
+            )
     else:
         log.info("starting daemon for game=%s", game)
         spawned = _spawn_daemon(game=game)

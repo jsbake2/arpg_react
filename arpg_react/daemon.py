@@ -129,6 +129,16 @@ def run(
     scheduler = AlertScheduler(events_config=config.events)
     input_controller = InputController()
 
+    # Marker file so the launcher can tell what game this daemon was
+    # spawned for — used to detect a mismatch when the user picks a
+    # different game in the launch dialog than the running daemon
+    # serves. Written next to the socket so it shares the same lifecycle.
+    if socket_path is not None:
+        try:
+            (socket_path.parent / "game").write_text(game)
+        except OSError as exc:  # noqa: BLE001
+            log.warning("daemon: failed to write game marker: %s", exc)
+
     # Install the per-game default keymap first so even slots without an
     # entry on the user's profile (or with no profile at all) press the
     # right thing — e.g. D4 "L" → mouse-left, POE2 "Q" → keyboard 'q'.
