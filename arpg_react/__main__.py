@@ -76,6 +76,7 @@ def cmd_run(
     cache_path: Path,
     sounds_dir: Path,
     socket_path: Path,
+    game: str = "d4",
 ) -> int:
     source, helltides = build_source_pair(config, cache_path)
     return daemon.run(
@@ -85,6 +86,7 @@ def cmd_run(
         user_sounds_dir=sounds_dir,
         socket_path=socket_path,
         config_path=config_path,
+        game=game,
     )
 
 
@@ -273,7 +275,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--verbose", "-v", action="store_true")
     sub = parser.add_subparsers(dest="cmd")
     sub.add_parser("once", help="print current event statuses and exit")
-    sub.add_parser("run", help="run daemon (timer alerts + watchers + IPC server)")
+    run_parser = sub.add_parser(
+        "run", help="run daemon (timer alerts + watchers + IPC server)"
+    )
+    run_parser.add_argument(
+        "--game",
+        choices=("d4", "poe2"),
+        default="d4",
+        help="active game — selects per-game profile cache, slot list, and detector defaults (default: d4)",
+    )
     panel_parser = sub.add_parser(
         "panel", help="launch PyQt panel (subscribes to a running daemon)"
     )
@@ -385,8 +395,9 @@ def main(argv: list[str] | None = None) -> int:
     if cmd == "once":
         return cmd_once(config, cache_path)
     if cmd == "run":
+        game = getattr(args, "game", "d4")
         sounds_dir = args.sounds_dir or default_user_sounds_dir()
-        return cmd_run(config, config_path, cache_path, sounds_dir, socket_path)
+        return cmd_run(config, config_path, cache_path, sounds_dir, socket_path, game=game)
     if cmd == "panel":
         return cmd_panel(socket_path, theme=args.theme, game=args.game)
     if cmd == "app":

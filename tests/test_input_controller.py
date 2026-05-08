@@ -70,3 +70,35 @@ def test_keymap_falls_back_to_identity_for_unmapped_slots():
     assert _resolve(ic, HotkeyKind.KEY_1) == ("key", "a")
     assert _resolve(ic, HotkeyKind.KEY_2) == ("key", "2")
     assert _resolve(ic, HotkeyKind.L) == ("mouse", "left")
+
+
+def test_poe2_default_keymap_routes_correctly():
+    """POE2 has Q/E/R/T/F + LMB/MMB/RMB. With the default POE2 keymap
+    installed, keyboard slots type their letter and mouse slots press
+    the matching button."""
+    from arpg_react.config import DEFAULT_KEYMAP_BY_GAME
+    ic = InputController()
+    ic.set_keymap(DEFAULT_KEYMAP_BY_GAME["poe2"])
+    assert _resolve(ic, HotkeyKind.Q) == ("key", "q")
+    assert _resolve(ic, HotkeyKind.E) == ("key", "e")
+    assert _resolve(ic, HotkeyKind.R) == ("key", "r")     # POE2 keyboard R, NOT mouse
+    assert _resolve(ic, HotkeyKind.T) == ("key", "t")
+    assert _resolve(ic, HotkeyKind.F) == ("key", "f")
+    assert _resolve(ic, HotkeyKind.LMB) == ("mouse", "left")
+    assert _resolve(ic, HotkeyKind.MMB) == ("mouse", "middle")
+    assert _resolve(ic, HotkeyKind.RMB) == ("mouse", "right")
+
+
+def test_d4_default_keymap_routes_correctly():
+    """D4 default keymap preserves the L/R → mouse semantics from before
+    keymap support, including for legacy LMB/RMB-named slots."""
+    from arpg_react.config import DEFAULT_KEYMAP_BY_GAME
+    ic = InputController()
+    ic.set_keymap(DEFAULT_KEYMAP_BY_GAME["d4"])
+    assert _resolve(ic, HotkeyKind.KEY_1) == ("key", "1")
+    assert _resolve(ic, HotkeyKind.L) == ("mouse", "left")
+    assert _resolve(ic, HotkeyKind.R) == ("mouse", "right")
+    # Old D4 builds whose JSON had "LMB"/"RMB" deserialize to those
+    # enum members now — must still press the right mouse button.
+    assert _resolve(ic, HotkeyKind.LMB) == ("mouse", "left")
+    assert _resolve(ic, HotkeyKind.RMB) == ("mouse", "right")

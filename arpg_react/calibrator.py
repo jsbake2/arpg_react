@@ -32,13 +32,63 @@ SLOTS_BY_GAME = {
 GAMES = list(SLOTS_BY_GAME)
 
 # Default OCR regions per game — the rectangle where the in-game skill
-# detail panel renders. Lifting jbaker's POE2 panel bounds from the
-# red-outlined `arpg_stuff/poe2/ocr_area.png` reference (2026-05-07).
+# detail panel renders, captured at 2560×1440 100% UI scale.
 # Per-user override available via env D4_OCR_BBOX="x1,y1,x2,y2".
 DEFAULT_OCR_BBOX_BY_GAME: dict[str, tuple[int, int, int, int] | None] = {
     "d4":   None,
     "poe2": (914, 311, 1641, 1036),
 }
+
+# Reference resolution + UI scale the bboxes above were captured at —
+# parallel to the detector's reference values. `scale_ocr_bbox()` scales
+# proportionally so the OCR rectangle still lands on the in-game panel
+# at any 16:9 resolution.
+OCR_REF_W = 2560
+OCR_REF_H = 1440
+OCR_REF_UI_SCALE = 1.0
+
+
+def scale_ocr_bbox(
+    bbox: tuple[int, int, int, int] | None,
+    screen_w: int,
+    screen_h: int,
+    ui_scale: float = 1.0,
+) -> tuple[int, int, int, int] | None:
+    """Scale a reference OCR bbox to the user's actual resolution.
+
+    Same uniform-scale assumption as the detector: D4/POE2 UI elements
+    grow proportionally with resolution at the same aspect ratio. For
+    21:9 ultrawides we'd need anchor-aware math — POE2's detail panel
+    pins to the right edge — but neither current user is on ultrawide.
+    """
+    if bbox is None:
+        return None
+    sx = (screen_w / OCR_REF_W) * (ui_scale / OCR_REF_UI_SCALE)
+    sy = (screen_h / OCR_REF_H) * (ui_scale / OCR_REF_UI_SCALE)
+    x1, y1, x2, y2 = bbox
+    return (
+        int(round(x1 * sx)),
+        int(round(y1 * sy)),
+        int(round(x2 * sx)),
+        int(round(y2 * sy)),
+    )
+
+
+def ocr_bbox_for_profile(game: str) -> tuple[int, int, int, int] | None:
+    """Resolve the per-user OCR bbox: env override > scaled-from-profile
+    > reference default. Called by the calibrator at startup."""
+    from arpg_react.editor_sync import load_cached_profile
+    base = DEFAULT_OCR_BBOX_BY_GAME.get(game)
+    if base is None:
+        return None
+    profile = load_cached_profile(game) or {}
+    display = profile.get("display") or {}
+    sw = int(display.get("screen_w") or OCR_REF_W)
+    sh = int(display.get("screen_h") or OCR_REF_H)
+    ui = float(display.get("ui_scale") or OCR_REF_UI_SCALE)
+    if (sw, sh, ui) == (OCR_REF_W, OCR_REF_H, OCR_REF_UI_SCALE):
+        return base
+    return scale_ocr_bbox(base, sw, sh, ui)
 
 
 # ----------------------------------------------------------- API client
@@ -176,9 +226,10 @@ class CalibratorWindow(QtWidgets.QMainWindow):
         self.current_game: str = default_game if default_game in GAMES else "poe2"
         self.current_build_name: str | None = None
         self.current_build_body: dict | None = None
-        # Env override pinned at startup; otherwise per-game default.
+        # Env override pinned at startup; otherwise per-user-profile-scaled
+        # default (resolution + UI scale read from the cached profile).
         self._env_bbox_override = ocr_bbox
-        self.ocr_bbox = ocr_bbox or DEFAULT_OCR_BBOX_BY_GAME.get(self.current_game)
+        self.ocr_bbox = ocr_bbox or ocr_bbox_for_profile(self.current_game)
         self._rows: dict[str, SlotRow] = {}
 
         self.setWindowTitle("ARPG React — Skill Calibration")
@@ -347,7 +398,7 @@ class CalibratorWindow(QtWidgets.QMainWindow):
         # Use the per-game default OCR bbox unless an env override was set
         # at startup (env override pinned for the whole session).
         if self._env_bbox_override is None:
-            self.ocr_bbox = DEFAULT_OCR_BBOX_BY_GAME.get(self.current_game)
+            self.ocr_bbox = ocr_bbox_for_profile(self.current_game)
         self._rebuild_slot_rows()
         self._refresh_build_list()
 

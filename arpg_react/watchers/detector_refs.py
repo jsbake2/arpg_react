@@ -28,6 +28,54 @@ def _decode(b64: str) -> tuple[tuple[int, int, int], ...]:
     )
 
 
+# Reference resolution + UI scale templates were captured at. Mirrors
+# DETECTOR_REF_W/H/UI_SCALE in detector.py — kept here to avoid the
+# circular import. Update both if the reference shots ever change.
+TEMPLATE_REF_W = 2560
+TEMPLATE_REF_H = 1440
+TEMPLATE_REF_UI_SCALE = 1.0
+
+
+def scale_template(
+    ref: TemplateRef,
+    screen_w: int,
+    screen_h: int,
+    ui_scale: float = 1.0,
+) -> TemplateRef:
+    """Resize a TemplateRef to a different resolution + UI scale.
+
+    The bbox is scaled proportionally and the pixel data is bilinearly
+    resampled via Pillow so the per-pixel colors stay close to what
+    we'd see on a native-resolution capture. HSV-class thresholds
+    (rgb_tolerance, match_threshold_pct) pass through unchanged."""
+    if (screen_w, screen_h, ui_scale) == (
+        TEMPLATE_REF_W, TEMPLATE_REF_H, TEMPLATE_REF_UI_SCALE
+    ):
+        return ref
+
+    sx = (screen_w / TEMPLATE_REF_W) * (ui_scale / TEMPLATE_REF_UI_SCALE)
+    sy = (screen_h / TEMPLATE_REF_H) * (ui_scale / TEMPLATE_REF_UI_SCALE)
+    x1, y1, x2, y2 = ref.bbox
+    nx1, ny1 = int(round(x1 * sx)), int(round(y1 * sy))
+    nx2, ny2 = int(round(x2 * sx)), int(round(y2 * sy))
+    new_w, new_h = max(1, nx2 - nx1), max(1, ny2 - ny1)
+    old_w, old_h = x2 - x1, y2 - y1
+
+    from PIL import Image
+    img = Image.new("RGB", (old_w, old_h))
+    img.putdata(list(ref.pixels))
+    resized = img.resize((new_w, new_h), Image.Resampling.BILINEAR)
+    new_pixels = tuple(resized.getdata())  # already (r,g,b) tuples for RGB mode
+
+    return TemplateRef(
+        name=ref.name,
+        bbox=(nx1, ny1, nx2, ny2),
+        pixels=new_pixels,
+        rgb_tolerance=ref.rgb_tolerance,
+        match_threshold_pct=ref.match_threshold_pct,
+    )
+
+
 # --- BOSS bar reference (HP-independent UI frame) ----
 _BOSS_B64 = "eNplVGtz2lYQBQHmbZB5CBAgCSz0RE/QwxJIAgkJYxPjOInrJP6QZtpOOu1Mp51pp7++GzNx0+bO+XB1tXvu7tm92xuOFNOx/fAIc53wMyv1zTrnWcWcy4avmE+w/CEtIJkyQRKSsXDWl168Sw5vNMup1Opgny+VO90u3sezuezXPDhF84o91V1gUBy/1sLB1lis11eH8PqWpJlsNosgSHdITo2LRRgFcSxoc1qQOj28cFLIpDMpJJXOIq3ekBY1Trfaw1E2VzKXnjyfd3A8DQtByAnHSCqvGawyY9X51HCsIFqGkb30eEmpoY1jMEgmg2J4a0CWqjViPC6Wy3BYQ1Ga48G9Wj8DgxSSS2XyJ5U61icYXvCiTXR1fREmzyT5YgmnOWCAm4/uTrACs0z2S+JPDAAkky9kC9XyqazN/N3NRbh9ZhgwIjDAvnJ6agde8vJm5tqpTApQRmtOEIS7K4BqmmNWAGi2m7y4OWu1nggyOMWSjFQ76z7rbAVesEtIlq+1mkeeeuuMkyV3HXnb683h9fbufrW9/KJDgVGMMa/WGr2zdu94WD6tUhNashxxbtJTudHB0rk08GTyOQwfiLoxXwQTXjgaYwNKNNwjg7eJVdOqt9pPiedKp6eDMa1fuFACwwsplj92CKyTQrFQKh33nKy64UbQ57lyDQKDZKH6gqp/li6VAm1BGZyglts9wFptyHO6UCw+51tFG5rtBPFWMsxUPg++EAZ8+psYNpwkN9vYc0UE3QAR/DiBX2OGzZcqJ8Vyj6ItP4QTxbLSxaIbbSwvWG5i2bAgtgt/NXeXFMOhLayKopksMmY56DpB1ThZUd0AAN04FmVe08Grfz6xo61o2E60Nby1ZFjDiUTx6ojXRpwIPQnNNJFUxVlCi/Ig5ipytjuSUwhWggdorSLTX0/txUiU7fVmvb91osTwIla1gYdk4DXqrDpjtTm4CzPTjpPVza0dbwlOni1XYAxY7fb7d4/B/mD6obu5hKKDdMLM6ZAcMIx5AQAZ9Yix7gX+i5uL+BJutzbJ/v7h1btHwN27x/2ru09//Pnw4afdy/sn3IGkNDslzhlGkgHYkKh3u8ntm+++/0SLyvX9w6e//n78+Vc/2c8XK3O5JkYjf5M8/vjL4f79hBPi/YtVckmOGaw/rNQbZ1ivM6T0hb97/VacmVCaj7/9fv/xBysIqQmL9fDjs4LVwrruakMzHC9rtw8Pl4dDnxyh7W691RF1c/fq7Wzh1ztdJ4pnC6/RHUBbfzvHmi2s3YGMGWiw1+8/TFUDbXXQZkd3A3936I/o9oBodvspmDOfR00apg0AKv5fmnSzMxiOWEbU2t0+2mif5AtwY4+aUOwUQvrXEPn89KgJb3vx/yIpVOrFKpov12poc8xO62jzpFCCq0ETGGFfM8A0c9dXq+1B1OZtnCzXGtlsrlipgnsD63cHo4mo2sGWUwyYrqxmtQdUu09QDA+KnQvyzA0X4fVUs4hz5h9ZmNrk"
 BOSS_REF = TemplateRef(

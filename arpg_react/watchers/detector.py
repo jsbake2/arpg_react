@@ -140,6 +140,78 @@ class DetectorConfig:
 DETECTOR_DEFAULTS = DetectorConfig()
 
 
+# Reference resolution + UI scale the hard-coded defaults were captured
+# at. `DetectorConfig.from_profile()` scales every pixel coordinate
+# proportionally so a different display still hits the right UI bits.
+DETECTOR_REF_W = 2560
+DETECTOR_REF_H = 1440
+DETECTOR_REF_UI_SCALE = 1.0
+
+
+def scale_detector_for(
+    screen_w: int,
+    screen_h: int,
+    ui_scale: float = 1.0,
+    base: DetectorConfig = DETECTOR_DEFAULTS,
+) -> DetectorConfig:
+    """Return a DetectorConfig with all pixel coordinates scaled to a
+    different (screen_w, screen_h, ui_scale).
+
+    Math assumption: D4's UI scales linearly with resolution at the
+    same aspect ratio (16:9 → 16:9 verified for jbaker 2560×1440 and
+    matt 1920×1080). The single multiplier is `(target / reference) *
+    ui_scale`. For ultrawide (21:9) we'd need anchor-aware coords —
+    skill bar centers, orbs flank corners — but neither current user is
+    on ultrawide so the simple form ships first.
+
+    HSV thresholds and label_target_rgb are resolution-independent and
+    pass through untouched.
+    """
+    sx = (screen_w / DETECTOR_REF_W) * (ui_scale / DETECTOR_REF_UI_SCALE)
+    sy = (screen_h / DETECTOR_REF_H) * (ui_scale / DETECTOR_REF_UI_SCALE)
+
+    def _ix(v: float) -> int:
+        return int(round(v * sx))
+
+    def _iy(v: float) -> int:
+        return int(round(v * sy))
+
+    x1, y1, x2, y2 = base.grab_bbox
+    return DetectorConfig(
+        grab_bbox=(_ix(x1), _iy(y1), _ix(x2), _iy(y2)),
+        slot_x={k: _ix(v) for k, v in base.slot_x.items()},
+        top_bar_y=_iy(base.top_bar_y),
+        top_bar_half_w=max(1, _ix(base.top_bar_half_w)),
+        top_bar_half_h=max(1, _iy(base.top_bar_half_h)),
+        body_y=_iy(base.body_y),
+        body_half=max(1, _ix(base.body_half)),
+        label_y=_iy(base.label_y),
+        label_x_min=_ix(base.label_x_min),
+        label_x_max=_ix(base.label_x_max),
+        label_x_step=max(1, _ix(base.label_x_step)),
+        hp_orb_x=_ix(base.hp_orb_x),
+        resource_orb_x=_ix(base.resource_orb_x),
+        orb_y_top=_iy(base.orb_y_top),
+        orb_y_bottom=_iy(base.orb_y_bottom),
+        # Resolution-independent thresholds pass through unchanged.
+        orb_sat_threshold=base.orb_sat_threshold,
+        active_hue_center=base.active_hue_center,
+        active_hue_band=base.active_hue_band,
+        active_min_sat=base.active_min_sat,
+        active_min_val=base.active_min_val,
+        cooldown_hue_center=base.cooldown_hue_center,
+        cooldown_hue_band=base.cooldown_hue_band,
+        cooldown_min_sat=base.cooldown_min_sat,
+        cooldown_min_val=base.cooldown_min_val,
+        body_ready_min_v=base.body_ready_min_v,
+        body_ready_min_sat=base.body_ready_min_sat,
+        town_max_body_sat=base.town_max_body_sat,
+        label_target_rgb=base.label_target_rgb,
+        label_tolerance=base.label_tolerance,
+        label_required_hits=base.label_required_hits,
+    )
+
+
 @dataclass(frozen=True)
 class DetectorReading:
     """One detector pass — what the daemon sees this tick."""
@@ -203,10 +275,21 @@ class Detector:
         self,
         config: DetectorConfig | None = None,
         grab_fn: Callable[[tuple[int, int, int, int]], object] | None = None,
+        boss_ref=None,
+        mount_ref=None,
     ) -> None:
         self.cfg = config or DETECTOR_DEFAULTS
         self._grab_fn = grab_fn or self._default_grab
         self._px = None  # PIL PixelAccess — refreshed each detect()
+        # Templates are instance attrs so the daemon can swap in resolution-
+        # scaled versions. Lazy-import default refs to keep this module light.
+        if boss_ref is None or mount_ref is None:
+            from arpg_react.watchers.detector_refs import BOSS_REF, MOUNT_REF
+            self._boss_ref = boss_ref or BOSS_REF
+            self._mount_ref = mount_ref or MOUNT_REF
+        else:
+            self._boss_ref = boss_ref
+            self._mount_ref = mount_ref
 
     @staticmethod
     def _default_grab(bbox):
@@ -267,9 +350,8 @@ class Detector:
                 boss_detected=False,
             )
 
-        from arpg_react.watchers.detector_refs import BOSS_REF, MOUNT_REF
-        boss = self._template_match(img, BOSS_REF)
-        mounted = self._template_match(img, MOUNT_REF)
+        boss = self._template_match(img, self._boss_ref)
+        mounted = self._template_match(img, self._mount_ref)
         hp = self._orb_fill(img, self.cfg.hp_orb_x)
         res = self._orb_fill(img, self.cfg.resource_orb_x)
         if mounted:

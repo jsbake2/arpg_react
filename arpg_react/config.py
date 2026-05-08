@@ -13,20 +13,40 @@ from arpg_react.timers import EventKind
 
 
 class HotkeyKind(str, Enum):
+    """Slot identifier used by rules + watchers. Spans both D4 and POE2.
+
+    The slot's semantic meaning (which physical key/button to press) is
+    no longer carried by the enum identity — that's data on the per-user
+    profile keymap. The enum just enumerates valid slot *labels*.
+    """
+
+    # D4 slots — original 6-slot D4 hotbar. L/R historically meant the
+    # left/right mouse buttons; the daemon's D4 default keymap preserves
+    # that semantics for builds with no per-user override.
     KEY_1 = "1"
     KEY_2 = "2"
     KEY_3 = "3"
     KEY_4 = "4"
-    L = "L"   # left mouse button
-    R = "R"   # right mouse button
+    L = "L"
+    R = "R"
 
-    # Backwards-compat aliases — will deserialize "LMB"/"RMB" from existing
-    # JSON files into the L/R members. Keeping the names visible so older
-    # test imports (HotkeyKind.LMB) continue to resolve.
-    LMB = L
-    RMB = R
+    # POE2 slots — separate enum members so a POE2 build with "LMB" stays
+    # distinct from a D4 build that happened to refer to "L". The default
+    # POE2 keymap maps LMB/MMB/RMB to mouse buttons and Q/E/R/T/F to the
+    # matching keyboard letters.
+    LMB = "LMB"
+    MMB = "MMB"
+    RMB = "RMB"
+    Q = "Q"
+    E = "E"
+    T = "T"
+    F = "F"
+    # NB: "R" is shared by both games (D4 right-mouse, POE2 keyboard 'R').
+    # The slot label is the same; only the default-keymap mapping differs.
 
 
+# D4 hotbar order — used by panel widgets that render a D4-shaped bar
+# and by tests that iterate the historical 6 slots.
 HOTKEY_ORDER: tuple[HotkeyKind, ...] = (
     HotkeyKind.KEY_1,
     HotkeyKind.KEY_2,
@@ -35,6 +55,42 @@ HOTKEY_ORDER: tuple[HotkeyKind, ...] = (
     HotkeyKind.L,
     HotkeyKind.R,
 )
+
+
+# Per-game slot order — drives UI rendering, validation, and default-
+# keymap construction. Daemon picks the right one via its --game arg.
+HOTKEY_ORDER_BY_GAME: dict[str, tuple[HotkeyKind, ...]] = {
+    "d4": HOTKEY_ORDER,
+    "poe2": (
+        HotkeyKind.LMB,
+        HotkeyKind.MMB,
+        HotkeyKind.RMB,
+        HotkeyKind.Q,
+        HotkeyKind.E,
+        HotkeyKind.R,
+        HotkeyKind.T,
+        HotkeyKind.F,
+    ),
+}
+
+
+# Default per-game keymap installed at daemon startup when no profile is
+# cached. Identity for keyboard slots; mouse-button tokens for the
+# obvious mouse-button labels. The Profile UI overrides this per user.
+DEFAULT_KEYMAP_BY_GAME: dict[str, dict[str, str]] = {
+    "d4": {
+        "1": "1", "2": "2", "3": "3", "4": "4",
+        "L": "lmb", "R": "rmb",
+        # Legacy aliases — old D4 builds with "LMB"/"RMB" strings now
+        # deserialize to HotkeyKind.LMB/RMB; map those to mouse buttons
+        # too so behavior is unchanged from the alias era.
+        "LMB": "lmb", "RMB": "rmb",
+    },
+    "poe2": {
+        "LMB": "lmb", "MMB": "mmb", "RMB": "rmb",
+        "Q": "q", "E": "e", "R": "r", "T": "t", "F": "f",
+    },
+}
 
 
 def _normalize_mouse_button_string(s: str) -> str:

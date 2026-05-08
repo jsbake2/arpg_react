@@ -30,10 +30,13 @@ HOLD_MS = 25
 
 # Tokens the keymap can use to mean "press this mouse button instead of
 # typing a key". Case-insensitive comparison happens at lookup time.
+# Single letters (l/r/m) are intentionally excluded — they collide with
+# legitimate keyboard letters (POE2 keyboard 'r' would otherwise route
+# to right-mouse). Explicit mouse names only.
 _MOUSE_TOKENS = {
-    "lmb": "left",  "left":   "left",  "l": "left",
-    "rmb": "right", "right":  "right", "r": "right",
-    "mmb": "middle","middle": "middle","m": "middle",
+    "lmb": "left",  "left":   "left",
+    "rmb": "right", "right":  "right",
+    "mmb": "middle","middle": "middle",
 }
 
 

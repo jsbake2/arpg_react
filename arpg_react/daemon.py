@@ -18,6 +18,7 @@ from arpg_react.alerts import (
 )
 from arpg_react.config import (
     Config,
+    DEFAULT_KEYMAP_BY_GAME,
     HotkeyKind,
     default_builds_dir,
     detect_class_from_name,
@@ -56,7 +57,12 @@ from arpg_react.rules import BuildV2
 from arpg_react.sources import HelltidesSource, TimerSource
 from arpg_react.timers import EventKind
 from arpg_react.watchers import InputController
-from arpg_react.watchers.detector import Detector, GameState as DetectorGameState
+from arpg_react.watchers.detector import (
+    DETECTOR_DEFAULTS,
+    Detector,
+    GameState as DetectorGameState,
+    scale_detector_for,
+)
 from arpg_react.watchers.rule_engine_v2 import RuleEngineV2
 
 log = logging.getLogger(__name__)
@@ -106,6 +112,7 @@ def run(
     socket_path: Path | None = None,
     config_path: Path | None = None,
     builds_dir: Path | None = None,
+    game: str = "d4",
 ) -> int:
     builds_dir = builds_dir or default_builds_dir()
     audio = PaplayAudioPlayer(master_volume=config.audio.master_volume)
@@ -122,15 +129,16 @@ def run(
     scheduler = AlertScheduler(events_config=config.events)
     input_controller = InputController()
 
-    # Apply the cached per-user keymap before the engine ever fires, so the
-    # first press already routes through the user's bindings (Matt's `4 → d`,
-    # `R → middle`, etc.) instead of identity. The editor-sync loop refreshes
-    # this whenever a newer profile lands. Daemon is D4-only today; generalise
-    # the game arg when POE2 detection is wired.
-    _daemon_game = "d4"
+    # Install the per-game default keymap first so even slots without an
+    # entry on the user's profile (or with no profile at all) press the
+    # right thing — e.g. D4 "L" → mouse-left, POE2 "Q" → keyboard 'q'.
+    # The user's editor profile then overrides any slots they've remapped.
+    _daemon_game = game
+    keymap = dict(DEFAULT_KEYMAP_BY_GAME.get(_daemon_game, {}))
     cached_profile = load_cached_profile(_daemon_game)
     if cached_profile and cached_profile.get("keymap"):
-        input_controller.set_keymap(cached_profile["keymap"])
+        keymap.update(cached_profile["keymap"])
+    input_controller.set_keymap(keymap)
 
     active_build: BuildV2 = load_or_create_build_v2(config.current_build, builds_dir)
     context_detector = ContextDetector(
@@ -140,8 +148,34 @@ def run(
 
     # New detector — single ImageGrab/tick covers slot states, HP/mana
     # orbs, boss bar, and mount UI. Replaces the legacy per-pixel sampler
-    # in the engine and the saturation-scan in ContextDetector.
-    detector = Detector()
+    # in the engine and the saturation-scan in ContextDetector. Coords
+    # auto-scale to the user's resolution + UI scale via the cached
+    # profile; fall back to the 2560×1440 100% reference defaults when
+    # no profile is cached (matches jbaker's setup).
+    display = (cached_profile or {}).get("display") or {}
+    sw = int(display.get("screen_w") or 2560)
+    sh = int(display.get("screen_h") or 1440)
+    ui = float(display.get("ui_scale") or 1.0)
+    detector_cfg = (
+        DETECTOR_DEFAULTS
+        if (sw, sh, ui) == (2560, 1440, 1.0)
+        else scale_detector_for(sw, sh, ui)
+    )
+    # Boss/mount template patches were captured at the same reference
+    # resolution; resize them so the per-pixel match still lands.
+    from arpg_react.watchers.detector_refs import BOSS_REF, MOUNT_REF, scale_template
+    boss_ref_scaled = scale_template(BOSS_REF, sw, sh, ui)
+    mount_ref_scaled = scale_template(MOUNT_REF, sw, sh, ui)
+    log.info(
+        "detector: %s coords for %dx%d @ %.2fx UI scale",
+        "reference" if detector_cfg is DETECTOR_DEFAULTS else "scaled",
+        sw, sh, ui,
+    )
+    detector = Detector(
+        config=detector_cfg,
+        boss_ref=boss_ref_scaled,
+        mount_ref=mount_ref_scaled,
+    )
 
     engine = RuleEngineV2(
         build=active_build,
@@ -308,7 +342,9 @@ def run(
             changed = sync_once(config.editor_url, builds_dir)
             new_profile = sync_profile(config.editor_url, _daemon_game)
             if new_profile and new_profile.get("keymap"):
-                input_controller.set_keymap(new_profile["keymap"])
+                merged = dict(DEFAULT_KEYMAP_BY_GAME.get(_daemon_game, {}))
+                merged.update(new_profile["keymap"])
+                input_controller.set_keymap(merged)
             # Always re-check the active build on disk vs in-memory, even
             # when sync wrote nothing — the file may already match the
             # server (e.g. an earlier auto-poll round wrote it) but the

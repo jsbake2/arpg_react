@@ -174,11 +174,13 @@ def migrate_legacy_build(raw: dict[str, Any]) -> BuildV2:
     rule that fires when the slot transitions to READY. Any new-shape
     fields already present pass through.
 
-    Also normalizes any 'LMB'/'RMB' string references throughout the JSON
-    to the new 'L'/'R' values — covers slot_monitors keys, watcher hotkeys,
-    rule.target, combo step.slot, and condition.target.
+    LMB/RMB strings used to be rewritten to L/R here for backward compat
+    with an older D4-only enum where LMB/RMB were aliases. They're now
+    distinct enum members (POE2 needs them separate), so the rewrite is
+    gone — old D4 builds with "LMB"/"RMB" deserialize to HotkeyKind.LMB/
+    HotkeyKind.RMB, and the daemon's D4 default keymap routes both to the
+    correct mouse buttons.
     """
-    raw = _normalize_button_strings(raw)
     if "watchers" not in raw or "slot_monitors" in raw:
         return BuildV2.model_validate(raw)
 
@@ -231,45 +233,3 @@ def migrate_legacy_build(raw: dict[str, Any]) -> BuildV2:
     return BuildV2.model_validate(converted_data)
 
 
-def _normalize_button_strings(raw: dict[str, Any]) -> dict[str, Any]:
-    """Rewrite any "LMB"/"RMB" mouse-button strings to "L"/"R" before pydantic
-    sees them. Operates on a deep copy so we don't mutate the caller's dict."""
-    import copy
-
-    def _fix(s):
-        if not isinstance(s, str):
-            return s
-        u = s.upper()
-        if u == "LMB":
-            return "L"
-        if u == "RMB":
-            return "R"
-        return s
-
-    raw = copy.deepcopy(raw)
-
-    sm = raw.get("slot_monitors")
-    if isinstance(sm, dict):
-        raw["slot_monitors"] = {_fix(k): v for k, v in sm.items()}
-
-    for w in raw.get("watchers", []) or []:
-        if isinstance(w, dict) and "hotkey" in w:
-            w["hotkey"] = _fix(w["hotkey"])
-
-    for r in raw.get("rules", []) or []:
-        if not isinstance(r, dict):
-            continue
-        if "target" in r:
-            r["target"] = _fix(r["target"])
-        for c in r.get("conditions", []) or []:
-            if isinstance(c, dict) and c.get("target"):
-                c["target"] = _fix(c["target"])
-        for step in r.get("combo_steps", []) or []:
-            if isinstance(step, dict):
-                if "slot" in step:
-                    step["slot"] = _fix(step["slot"])
-                for c in step.get("conditions", []) or []:
-                    if isinstance(c, dict) and c.get("target"):
-                        c["target"] = _fix(c["target"])
-
-    return raw
