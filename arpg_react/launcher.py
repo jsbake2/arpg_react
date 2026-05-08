@@ -72,7 +72,11 @@ def _spawn_daemon(extra_env: dict[str, str] | None = None) -> subprocess.Popen:
     )
 
 
-def run_app(socket_path: Path, theme: str = "diablo") -> int:
+def run_app(
+    socket_path: Path,
+    theme: str | None = None,
+    game: str | None = None,
+) -> int:
     """Spawn-or-attach daemon, run panel in foreground, clean up."""
     spawned: subprocess.Popen | None = None
 
@@ -92,7 +96,7 @@ def run_app(socket_path: Path, theme: str = "diablo") -> int:
     from arpg_react.panel.app import run_panel
 
     try:
-        return run_panel(socket_path, theme_name=theme)
+        return run_panel(socket_path, theme_name=theme, game=game)
     finally:
         if spawned is not None:
             log.info("panel closed — stopping spawned daemon (pid=%s)", spawned.pid)

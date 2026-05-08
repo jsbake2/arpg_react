@@ -88,16 +88,24 @@ def cmd_run(
     )
 
 
-def cmd_panel(socket_path: Path, theme: str = "diablo") -> int:
+def cmd_panel(
+    socket_path: Path,
+    theme: str | None = None,
+    game: str | None = None,
+) -> int:
     from arpg_react.panel.app import run_panel
 
-    return run_panel(socket_path, theme_name=theme)
+    return run_panel(socket_path, theme_name=theme, game=game)
 
 
-def cmd_app(socket_path: Path, theme: str = "diablo") -> int:
+def cmd_app(
+    socket_path: Path,
+    theme: str | None = None,
+    game: str | None = None,
+) -> int:
     from arpg_react.launcher import run_app
 
-    return run_app(socket_path, theme=theme)
+    return run_app(socket_path, theme=theme, game=game)
 
 
 def cmd_setup(hotkey: str, config_path: Path, build: str | None) -> int:
@@ -271,18 +279,30 @@ def main(argv: list[str] | None = None) -> int:
     )
     panel_parser.add_argument(
         "--theme",
-        choices=("neutral", "diablo"),
-        default="diablo",
-        help="visual theme (default: neutral)",
+        choices=("neutral", "diablo", "azurite"),
+        default=None,
+        help="visual theme override (default: matches the chosen game)",
+    )
+    panel_parser.add_argument(
+        "--game",
+        choices=("d4", "poe2"),
+        default=None,
+        help="skip the game-select dialog and launch straight into this game's panel",
     )
     app_parser = sub.add_parser(
         "app", help="all-in-one: auto-start daemon and open panel"
     )
     app_parser.add_argument(
         "--theme",
-        choices=("neutral", "diablo"),
-        default="diablo",
-        help="visual theme (default: neutral)",
+        choices=("neutral", "diablo", "azurite"),
+        default=None,
+        help="visual theme override (default: matches the chosen game)",
+    )
+    app_parser.add_argument(
+        "--game",
+        choices=("d4", "poe2"),
+        default=None,
+        help="skip the game-select dialog and launch straight into this game's panel",
     )
     setup_parser = sub.add_parser(
         "setup",
@@ -368,9 +388,9 @@ def main(argv: list[str] | None = None) -> int:
         sounds_dir = args.sounds_dir or default_user_sounds_dir()
         return cmd_run(config, config_path, cache_path, sounds_dir, socket_path)
     if cmd == "panel":
-        return cmd_panel(socket_path, theme=args.theme)
+        return cmd_panel(socket_path, theme=args.theme, game=args.game)
     if cmd == "app":
-        return cmd_app(socket_path, theme=args.theme)
+        return cmd_app(socket_path, theme=args.theme, game=args.game)
     if cmd == "setup":
         return cmd_setup(args.hotkey, config_path, args.build)
     if cmd == "builds":

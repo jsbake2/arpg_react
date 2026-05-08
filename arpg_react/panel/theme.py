@@ -117,7 +117,39 @@ DIABLO = Theme(
 )
 
 
-THEMES = {NEUTRAL.name: NEUTRAL, DIABLO.name: DIABLO}
+# POE2 azurite palette — deep teal-blue with cyan accents. Matches the
+# editor website's `body.game-poe2` overrides so the local panel and the
+# web editor read as the same product when the user has POE2 selected.
+AZURITE = Theme(
+    name="azurite",
+    bg="#050d12",
+    panel_bg="#0a1820",
+    card_bg="#0d2935",
+    card_bg_hover="#143849",
+    border="#16607e",
+    text="#d8eef4",
+    text_dim="#6e9aab",
+    text_label="#8ebccd",
+    accent="#5cd0e0",
+    state_active="#5cd0e0",      # bright cyan = active
+    state_upcoming="#1f5d76",    # dim teal
+    state_ending="#d97706",      # amber stays universal for "soon"
+    state_unknown="#143849",
+    severity_warning="#d97706",
+    severity_start="#5cd0e0",
+    severity_end="#1f5d76",
+    healthy="#4abf9c",
+    unhealthy="#b34257",
+    toggle_active="#1f8aa8",
+    toggle_active_hover="#2ba8c9",
+    toggle_paused="#7a3a3a",
+    toggle_paused_hover="#a04a4a",
+    font_family="'Cinzel', 'EB Garamond', 'Caudex', 'Inter', serif",
+    font_family_display="'Cinzel Decorative', 'Cinzel', 'EB Garamond', serif",
+)
+
+
+THEMES = {NEUTRAL.name: NEUTRAL, DIABLO.name: DIABLO, AZURITE.name: AZURITE}
 
 
 def state_color(theme: Theme, state: EventState) -> str:
@@ -494,5 +526,74 @@ QPlainTextEdit#debugView {{
     font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
     font-size: 10px;
     padding: 4px 6px;
+}}
+
+/* BUILD tab — calibrate button. Outline style so it doesn't compete
+   with the build picker / banner above it. Hover lifts to accent. */
+QPushButton#calibrateBtn {{
+    background: transparent;
+    color: {theme.accent};
+    border: 1px solid {theme.border};
+    border-radius: 4px;
+    padding: 6px 14px;
+    font-family: {theme.font_family_display};
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+}}
+QPushButton#calibrateBtn:hover {{
+    color: {theme.text};
+    border-color: {theme.accent};
+    background: {theme.card_bg_hover};
+}}
+
+/* LINKS tab — POE2 only. Cards stack vertically; each card has a label,
+   description, and a single OPEN button on the right. */
+QLabel#linksTitle {{
+    color: {theme.accent};
+    font-family: {theme.font_family_display};
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    padding-bottom: 4px;
+}}
+QFrame#linkRow {{
+    background: {theme.card_bg};
+    border: 1px solid {theme.border};
+    border-radius: 6px;
+}}
+QFrame#linkRow:hover {{
+    background: {theme.card_bg_hover};
+    border-color: {theme.accent};
+}}
+QLabel#linkLabel {{
+    color: {theme.text};
+    font-family: {theme.font_family_display};
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 3px;
+}}
+QLabel#linkDesc {{
+    color: {theme.text_dim};
+    font-size: 11px;
+}}
+QPushButton#linkButton {{
+    background: transparent;
+    color: {theme.accent};
+    border: 1px solid {theme.border};
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-family: {theme.font_family_display};
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+}}
+QPushButton#linkButton:hover {{
+    color: {theme.text};
+    border-color: {theme.accent};
+}}
+QLabel#healthLabel {{
+    color: {theme.text_dim};
+    font-size: 11px;
 }}
 """
