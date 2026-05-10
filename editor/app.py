@@ -472,7 +472,11 @@ def _default_profile(game: str) -> dict:
         slots = ["LMB", "MMB", "RMB", "Q", "E", "R", "T", "F"]
     else:
         slots = ["1", "2", "3", "4", "L", "R"]
-    keymap = {s: s.lower() for s in slots}
+    # D4 'L'/'R' are mouse-button slots — they must map to 'lmb'/'rmb' so
+    # the InputController routes them through pynput.mouse, not as the
+    # literal letter L/R on the keyboard.
+    _mouse_slot_overrides = {"L": "lmb", "R": "rmb"}
+    keymap = {s: _mouse_slot_overrides.get(s, s.lower()) for s in slots}
     return {
         "display": {"screen_w": 2560, "screen_h": 1440, "ui_scale": 1.0},
         "keymap": keymap,
