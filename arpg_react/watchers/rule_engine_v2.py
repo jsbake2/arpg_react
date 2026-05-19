@@ -147,6 +147,7 @@ class EvalContext:
     slot_states: dict[HotkeyKind, SlotState]
     resources: dict[str, float]      # name → 0..1
     boss_detected: bool
+    is_moving: bool = False
 
 
 def evaluate_condition(c: Condition, ctx: EvalContext) -> bool:
@@ -182,6 +183,10 @@ def evaluate_condition(c: Condition, ctx: EvalContext) -> bool:
         return ctx.slot_states.get(c.target) != want
     if t is ConditionType.BOSS_DETECTED:
         return ctx.boss_detected
+    if t is ConditionType.MOVEMENT_KEY_HELD:
+        return ctx.is_moving
+    if t is ConditionType.MOVEMENT_KEY_NOT_HELD:
+        return not ctx.is_moving
     return False
 
 
@@ -226,12 +231,14 @@ class RuleEngineV2:
         input_controller: InputController | None = None,
         sampler: PixelSampler | None = None,
         boss_detector: Callable[[], bool] | None = None,
+        movement_monitor: Callable[[], bool] | None = None,
     ) -> None:
         self._build = build
         self._dispatcher = dispatcher
         self._input = input_controller
         self._sampler = sampler
         self._boss_detector = boss_detector
+        self._movement_monitor = movement_monitor
 
         self._enabled = True
         self._sampling_disabled = False
@@ -291,6 +298,7 @@ class RuleEngineV2:
             slot_states=self.slot_states,
             resources=self.resource_fills,
             boss_detected=bool(self._boss_detector() if self._boss_detector else False),
+            is_moving=bool(self._movement_monitor() if self._movement_monitor else False),
         )
         for idx, rule in enumerate(self._build.rules):
             if not rule.enabled:
@@ -414,6 +422,7 @@ class RuleEngineV2:
             slot_states=self.slot_states,
             resources=self.resource_fills,
             boss_detected=bool(self._boss_detector() if self._boss_detector else False),
+            is_moving=bool(self._movement_monitor() if self._movement_monitor else False),
         )
 
         fired = 0

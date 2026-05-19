@@ -140,6 +140,18 @@ def test_condition_boss_detected():
     assert evaluate_condition(Condition(type=ConditionType.BOSS_DETECTED), ctx) is True
 
 
+def test_condition_movement_key_held():
+    ctx = EvalContext(slot_states={}, resources={}, boss_detected=False, is_moving=True)
+    assert evaluate_condition(Condition(type=ConditionType.MOVEMENT_KEY_HELD), ctx) is True
+    assert evaluate_condition(Condition(type=ConditionType.MOVEMENT_KEY_NOT_HELD), ctx) is False
+
+
+def test_condition_movement_key_not_held():
+    ctx = EvalContext(slot_states={}, resources={}, boss_detected=False, is_moving=False)
+    assert evaluate_condition(Condition(type=ConditionType.MOVEMENT_KEY_HELD), ctx) is False
+    assert evaluate_condition(Condition(type=ConditionType.MOVEMENT_KEY_NOT_HELD), ctx) is True
+
+
 # -----------------------------------------------------------------------
 # Cast types
 # -----------------------------------------------------------------------
@@ -252,6 +264,68 @@ def test_combo_dispatch_with_per_step_delays():
     eng.tick(NOW)  # fires slot 1, queues 2 and 3
     eng.tick(NOW + timedelta(milliseconds=60))   # slot 2 due
     eng.tick(NOW + timedelta(milliseconds=140))  # slot 3 due (50 + 80)
+    pressed = [c[0] for c in inp.calls]
+    assert pressed == [HotkeyKind.KEY_1, HotkeyKind.KEY_2, HotkeyKind.KEY_3]
+
+
+def test_rule_gated_by_movement_does_not_fire_while_moving():
+    """Rule with MOVEMENT_KEY_NOT_HELD is held off while user is moving,
+    then fires once movement stops."""
+    inp = NullInputController()
+    moving = {"v": True}
+
+    rule = Rule(
+        name="interrupt_skill", target=HotkeyKind.KEY_1,
+        cast_type=CastType.CONDITIONAL, cooldown_seconds=0.0,
+        conditions=[Condition(type=ConditionType.MOVEMENT_KEY_NOT_HELD)],
+    )
+    eng = RuleEngineV2(
+        build=base_build([rule]), dispatcher=make_dispatcher(),
+        input_controller=inp, sampler=_all_ready_sampler(),
+        movement_monitor=lambda: moving["v"],
+    )
+
+    eng.tick(NOW)
+    assert inp.calls == []
+
+    eng.tick(NOW + timedelta(milliseconds=300))
+    assert inp.calls == []
+
+    moving["v"] = False
+    eng.tick(NOW + timedelta(milliseconds=600))
+    pressed = [c[0] for c in inp.calls]
+    assert pressed == [HotkeyKind.KEY_1]
+
+
+def test_in_flight_combo_steps_complete_during_movement():
+    """Only the initial press is gated by the top-level
+    MOVEMENT_KEY_NOT_HELD condition. Combo steps without the condition
+    continue to fire even if the user starts moving after the chain was
+    scheduled."""
+    inp = NullInputController()
+    moving = {"v": False}
+
+    rule = Rule(
+        name="combo", target=HotkeyKind.KEY_1, cast_type=CastType.COMBO,
+        wait_mode=WaitMode.FIRE_NOW_REGARDLESS,
+        cooldown_seconds=10.0,
+        conditions=[Condition(type=ConditionType.MOVEMENT_KEY_NOT_HELD)],
+        combo_steps=[
+            ComboStep(slot=HotkeyKind.KEY_2, delay_ms=50),
+            ComboStep(slot=HotkeyKind.KEY_3, delay_ms=80),
+        ],
+    )
+    eng = RuleEngineV2(
+        build=base_build([rule]), dispatcher=make_dispatcher(),
+        input_controller=inp, sampler=_all_ready_sampler(),
+        movement_monitor=lambda: moving["v"],
+    )
+
+    eng.tick(NOW)
+    moving["v"] = True
+    eng.tick(NOW + timedelta(milliseconds=60))
+    eng.tick(NOW + timedelta(milliseconds=140))
+
     pressed = [c[0] for c in inp.calls]
     assert pressed == [HotkeyKind.KEY_1, HotkeyKind.KEY_2, HotkeyKind.KEY_3]
 

@@ -124,6 +124,8 @@ const COND_TYPES = [
   { id: "SLOT_STATE_IS", label: "slot state is" },
   { id: "SLOT_STATE_IS_NOT", label: "slot state is not" },
   { id: "BOSS_DETECTED", label: "boss detected" },
+  { id: "MOVEMENT_KEY_HELD", label: "MOVING (W/A/S/D held)" },
+  { id: "MOVEMENT_KEY_NOT_HELD", label: "NOT MOVING" },
 ];
 
 const SLOT_STATES = ["READY", "ACTIVE_READY", "IN_USE", "COOLDOWN", "DISABLED"];
@@ -538,7 +540,10 @@ function renderComboStep(rule, step, idx) {
 function renderCondition(arr, idx) {
   const c = arr[idx];
   const usesSlot = c.type === "SLOT_STATE_IS" || c.type === "SLOT_STATE_IS_NOT";
-  const usesNumeric = !usesSlot && c.type !== "BOSS_DETECTED";
+  const noFields = c.type === "BOSS_DETECTED"
+                || c.type === "MOVEMENT_KEY_HELD"
+                || c.type === "MOVEMENT_KEY_NOT_HELD";
+  const usesNumeric = !usesSlot && !noFields;
 
   // Sanitize stale fields — bad data sneaks in when the user changes
   // condition type without re-touching target/value (e.g. left-over
@@ -583,7 +588,7 @@ function renderCondition(arr, idx) {
         if (v === "SLOT_STATE_IS" || v === "SLOT_STATE_IS_NOT") {
           c.target = HOTKEYS[0];
           c.value = "READY";
-        } else if (v === "BOSS_DETECTED") {
+        } else if (v === "BOSS_DETECTED" || v === "MOVEMENT_KEY_HELD" || v === "MOVEMENT_KEY_NOT_HELD") {
           c.target = null;
           c.value = null;
         } else {

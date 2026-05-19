@@ -63,6 +63,7 @@ from arpg_react.watchers.detector import (
     GameState as DetectorGameState,
     scale_detector_for,
 )
+from arpg_react.watchers.movement_monitor import MovementMonitor
 from arpg_react.watchers.rule_engine_v2 import RuleEngineV2
 
 log = logging.getLogger(__name__)
@@ -128,6 +129,8 @@ def run(
     )
     scheduler = AlertScheduler(events_config=config.events)
     input_controller = InputController()
+    movement_monitor = MovementMonitor()
+    movement_monitor.start()
 
     # Marker file so the launcher can tell what game this daemon was
     # spawned for — used to detect a mismatch when the user picks a
@@ -191,6 +194,7 @@ def run(
         build=active_build,
         dispatcher=dispatcher,
         input_controller=input_controller,
+        movement_monitor=movement_monitor.is_moving,
     )
     engine.set_enabled(False)
 
@@ -502,6 +506,7 @@ def run(
     finally:
         sync_stop.set()
         hotkey.stop()
+        movement_monitor.stop()
         if log_relay is not None:
             logging.getLogger("arpg_react").removeHandler(log_relay)
         if ipc is not None:
