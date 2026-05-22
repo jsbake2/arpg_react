@@ -47,14 +47,20 @@ body.game-poe2 {
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-html, body {
-  background: radial-gradient(circle at 50% -10%, #3a1f12 0%, #0a0604 60%) fixed;
-  color: var(--text);
-  font-family: var(--serif);
+/* Page chrome — neutral dark on the viewport so the area outside the
+   centered body column reads the same regardless of which game is
+   active. The themed gradient lives on `body` (and `body.game-poe2`)
+   so it only paints inside the centered column. */
+html {
+  background: #0a0a0a;
   min-height: 100vh;
 }
 
 body {
+  background: radial-gradient(circle at 50% -10%, #3a1f12 0%, #0a0604 60%) fixed;
+  color: var(--text);
+  font-family: var(--serif);
+  min-height: 100vh;
   max-width: 980px;
   margin: 0 auto;
   padding: 24px 24px 100px;
@@ -651,3 +657,129 @@ body.auth-body {
 }
 #prof_status.ok   { color: #6cba6c; }
 #prof_status.warn { color: #c8585e; }
+
+
+/* TIPS tab — daily-refreshed strategy tip cards. Read-only display
+   with a per-user pin toggle that protects tips from auto-drop on the
+   next refresh. */
+.tips-toolbar {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 12px;
+}
+.tips-chips {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-bottom: 14px;
+}
+.tip-chip {
+  background: var(--panel);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 4px 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+}
+.tip-chip:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.tip-chip.active {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+.tips-list {
+  display: grid; grid-template-columns: 1fr; gap: 10px;
+}
+.tip-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.tip-card:hover { background: var(--panel-hi); border-color: var(--border-hi); }
+.tip-card.pinned { border-color: var(--accent); }
+.tip-card.pinned:hover { background: var(--panel-hi); }
+
+.tip-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.tip-topic {
+  background: var(--panel-hi);
+  color: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 2px 9px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+.tip-class {
+  background: transparent;
+  color: var(--text-label);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 2px 9px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+.tip-source {
+  color: var(--text-dim);
+  font-size: 10px;
+  margin-left: auto;
+}
+.tip-title {
+  font-family: var(--display);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text);
+  margin: 4px 0 6px 0;
+}
+.tip-body {
+  color: var(--text-label);
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 0 0 10px 0;
+}
+.tip-actions {
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+}
+.tip-pin-btn {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-family: var(--display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  cursor: pointer;
+}
+.tip-pin-btn:hover { color: var(--accent); border-color: var(--accent); }
+.tip-pin-btn.pinned { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.tip-pin-btn.pinned:hover { background: var(--accent-hi); border-color: var(--accent-hi); }
+.tip-open-btn {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 12px;
+  font-family: var(--display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.tip-open-btn:hover { color: var(--text); border-color: var(--accent); }
+.tips-empty {
+  color: var(--text-dim); font-style: italic; padding: 24px 0; text-align: center;
+}

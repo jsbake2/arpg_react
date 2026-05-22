@@ -13,6 +13,7 @@ from arpg_react.ipc.messages import parse_alert, parse_debug, parse_status
 from arpg_react.panel.client import IPCClient
 from arpg_react.panel.dialog import prompt_for_game
 from arpg_react.panel.theme import AZURITE, DIABLO, NEUTRAL, Theme, style_qss
+from arpg_react.panel.tips import TipsTab
 from arpg_react.panel.widgets import (
     BuildBanner,
     BuildPicker,
@@ -26,7 +27,7 @@ from arpg_react.timers import EventKind, EventStatus
 
 log = logging.getLogger(__name__)
 
-WINDOW_W, WINDOW_H = 460, 720
+WINDOW_W, WINDOW_H = 620, 760
 
 # Per-game theme. NEUTRAL stays available via the explicit --theme override.
 GAME_THEME: dict[str, Theme] = {
@@ -228,7 +229,10 @@ class PanelWindow(QtWidgets.QMainWindow):
         self.game = game
         self.setObjectName("root")
         self.setWindowTitle(f"ARPG React — {game.upper()}")
-        self.setFixedSize(WINDOW_W, WINDOW_H)
+        # Use a minimum size instead of a fixed one so tip cards can grow
+        # horizontally when titles or bodies need extra room.
+        self.setMinimumSize(WINDOW_W, WINDOW_H)
+        self.resize(WINDOW_W, WINDOW_H)
 
         self._latest_statuses: dict[EventKind, EventStatus] = {}
 
@@ -257,15 +261,20 @@ class PanelWindow(QtWidgets.QMainWindow):
         self.tabs = QtWidgets.QTabWidget()
         self.tabs.setObjectName("mainTabs")
 
+        resources_root = package_root / "resources"
         if game == "d4":
             timers_widget = self._make_timers_tab(theme)
             self.tabs.addTab(timers_widget, "TIMERS")
             self.tabs.addTab(self.build_tab, "BUILD")
+            self.tips_tab = TipsTab(theme, "d4", resources_root)
+            self.tabs.addTab(self.tips_tab, "TIPS")
             self.tabs.setCurrentIndex(0)
         elif game == "poe2":
             self.links_tab = LinksTab(theme)
             self.tabs.addTab(self.links_tab, "LINKS")
             self.tabs.addTab(self.build_tab, "BUILD")
+            self.tips_tab = TipsTab(theme, "poe2", resources_root)
+            self.tabs.addTab(self.tips_tab, "TIPS")
             self.tabs.setCurrentIndex(1)  # default to BUILD — the working tab
         else:
             # Defensive — should never hit, dialog only emits d4/poe2.

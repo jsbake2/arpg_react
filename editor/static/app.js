@@ -172,6 +172,8 @@ const API = {
   rename: (old, n)  => api("POST",   `/api/builds/${encodeURIComponent(old)}/rename`, { new_name: n }),
   getProfile: ()    => api("GET",    "/api/profile"),
   putProfile: (p)   => api("PUT",    "/api/profile", p),
+  getTips:    ()    => api("GET",    `/api/tips/${GAME}`),
+  togglePin:  (id, pinned) => api("POST", `/api/tips/${GAME}/pin`, { tip_id: id, pinned }),
 };
 
 // ------------------------------------------------------------------ state
@@ -212,7 +214,6 @@ function emptyRule() {
     cast_count: 1,
     wait_for_green_clear: false,
     wait_mode: "WAIT_FOR_ALL_READY",
-    inter_step_delay_ms: 80,
     conditions: [],
     combo_steps: [],
     press_delay_ms: 80,
@@ -265,10 +266,25 @@ async function refreshBuildList() {
 async function loadActive(name) {
   if (!name) { active = null; activeName = null; render(); return; }
   active = await API.get(name);
+  sanitizeLegacyBuild(active);
   activeName = name;
   localStorage.setItem(LAST_KEY, name);
   setDirty(false);
   render();
+}
+
+// One-time-on-load cleanup for builds saved before the rule-level data-f
+// listener was scoped to exclude combo-step / condition descendants. Those
+// nested editors' field names (slot, delay_ms, type) used to leak onto the
+// parent Rule object, and inter_step_delay_ms was a model field that the
+// engine never read. Strip them so the next save reserializes cleanly.
+function sanitizeLegacyBuild(b) {
+  for (const r of (b.rules || [])) {
+    delete r.inter_step_delay_ms;
+    delete r.slot;
+    delete r.delay_ms;
+    delete r.type;
+  }
 }
 
 function render() {
@@ -449,17 +465,14 @@ function renderRule(b, r, idx) {
             ${WAIT_MODES.map(w => `<option value="${w.id}" ${r.wait_mode===w.id?'selected':''}>${w.label}</option>`).join("")}
           </select>
         </label>
-        <label>inter-step delay ms
-          <input type="number" data-f="inter_step_delay_ms" min="0" max="1000" value="${r.inter_step_delay_ms}">
-        </label>
       </div>
-      <div class="combo-steps"><h4>Combo steps</h4><div class="steps"></div>
+      <div class="combo-steps"><h4>Combo steps <small style="color:var(--text-dim); font-weight:normal">(per-step delay = ms between this key and the previous one)</small></h4><div class="steps"></div>
         <button class="add-mini" data-act="add-step">+ STEP</button>
       </div>`;
     const stepsBox = ts.querySelector(".steps");
     r.combo_steps.forEach((step, si) => stepsBox.appendChild(renderComboStep(r, step, si)));
     ts.querySelector('[data-act=add-step]').onclick = () => {
-      r.combo_steps.push({ slot: "1", delay_ms: r.inter_step_delay_ms || 80, conditions: [] });
+      r.combo_steps.push({ slot: "1", delay_ms: 80, conditions: [] });
       setDirty(); render();
     };
   }
@@ -478,9 +491,13 @@ function renderRule(b, r, idx) {
   };
   condBox.appendChild(addCond);
 
-  // wire body inputs
+  // wire body inputs — exclude combo-step and condition descendants so their
+  // own field names (slot, delay_ms, type, target, value) don't leak onto
+  // the parent Rule object. Those nested editors install their own listeners
+  // in renderComboStep / renderCondition that write to the correct sub-object.
   body.querySelectorAll("[data-f]").forEach(inp => {
     if (inp.tagName === "DIV") return;
+    if (inp.closest(".combo-step") || inp.closest(".condition")) return;
     inp.addEventListener("change", e => {
       const f = e.target.dataset.f;
       let v;
@@ -615,6 +632,119 @@ function renderPotionTab(b) {
   $("p_enabled").checked = p.enabled;
 }
 
+// ----------------------------------------------------------- tips tab
+
+let tipsState = {
+  tips: [],
+  activeTopic: "ALL",
+  loaded: false,
+};
+
+async function loadTips() {
+  $("tipsStatus").textContent = "loading…";
+  try {
+    const data = await API.getTips();
+    tipsState.tips = data.tips || [];
+    tipsState.loaded = true;
+    renderTips();
+    $("tipsStatus").textContent = `${tipsState.tips.length} tips`;
+  } catch (e) {
+    $("tipsStatus").textContent = `error: ${e.message || e}`;
+  }
+}
+
+function tipTopics() {
+  const seen = ["ALL"];
+  for (const t of tipsState.tips) {
+    const topic = (t.topic || "General").toUpperCase();
+    if (!seen.includes(topic)) seen.push(topic);
+  }
+  return seen;
+}
+
+function renderTipsChips() {
+  const wrap = $("tipsChips");
+  wrap.innerHTML = "";
+  for (const topic of tipTopics()) {
+    const btn = el("button", {
+      class: "tip-chip" + (topic === tipsState.activeTopic ? " active" : ""),
+      onclick: () => {
+        tipsState.activeTopic = topic;
+        renderTips();
+      },
+    }, [topic]);
+    wrap.appendChild(btn);
+  }
+}
+
+function filteredTips() {
+  if (tipsState.activeTopic === "ALL") return tipsState.tips;
+  const want = tipsState.activeTopic;
+  return tipsState.tips.filter(t => (t.topic || "General").toUpperCase() === want);
+}
+
+function renderTipCard(tip) {
+  const card = el("div", {
+    class: "tip-card" + (tip.pinned_by_me ? " pinned" : ""),
+  });
+  const head = el("div", { class: "tip-row" });
+  head.appendChild(el("span", { class: "tip-topic" }, [(tip.topic || "General").toUpperCase()]));
+  for (const cls of (tip.classes || [])) {
+    head.appendChild(el("span", { class: "tip-class" }, [cls.toUpperCase()]));
+  }
+  head.appendChild(el("span", { class: "tip-source" }, [tip.source_label || "source"]));
+  card.appendChild(head);
+
+  card.appendChild(el("div", { class: "tip-title" }, [tip.title || ""]));
+  card.appendChild(el("div", { class: "tip-body"  }, [tip.body  || ""]));
+
+  const actions = el("div", { class: "tip-actions" });
+  const pinBtn = el("button", {
+    class: "tip-pin-btn" + (tip.pinned_by_me ? " pinned" : ""),
+    title: tip.pinned_by_me ? "Click to unpin" : "Pin this tip (preserved on next refresh)",
+    onclick: async () => {
+      const newVal = !tip.pinned_by_me;
+      pinBtn.disabled = true;
+      try {
+        await API.togglePin(tip.id, newVal);
+        tip.pinned_by_me = newVal;
+        renderTips();
+        toast(newVal ? "pinned" : "unpinned");
+      } catch (e) {
+        toast(`pin failed: ${e.message || e}`);
+      } finally {
+        pinBtn.disabled = false;
+      }
+    },
+  }, [tip.pinned_by_me ? "📌 PINNED" : "📌 PIN"]);
+  actions.appendChild(pinBtn);
+  if (tip.source_url) {
+    const open = el("a", {
+      class: "tip-open-btn",
+      href: tip.source_url,
+      target: "_blank",
+      rel: "noopener noreferrer",
+    }, ["OPEN"]);
+    actions.appendChild(open);
+  }
+  card.appendChild(actions);
+  return card;
+}
+
+function renderTips() {
+  renderTipsChips();
+  const list = $("tipsList");
+  list.innerHTML = "";
+  const tips = filteredTips();
+  if (!tips.length) {
+    list.appendChild(el("div", { class: "tips-empty" }, ["No tips for this filter yet."]));
+    return;
+  }
+  for (const tip of tips) {
+    list.appendChild(renderTipCard(tip));
+  }
+}
+
 // ----------------------------------------------------------- events
 
 document.querySelectorAll(".tab").forEach(t => {
@@ -623,8 +753,14 @@ document.querySelectorAll(".tab").forEach(t => {
     document.querySelectorAll(".tabpanel").forEach(x => x.classList.remove("active"));
     t.classList.add("active");
     document.querySelector(`.tabpanel[data-tab="${t.dataset.tab}"]`).classList.add("active");
+    // Lazy-load tips on first open. Refresh button forces a re-fetch.
+    if (t.dataset.tab === "tips" && !tipsState.loaded) {
+      loadTips();
+    }
   });
 });
+
+$("tipsRefreshBtn").addEventListener("click", () => loadTips());
 
 $("buildPicker").addEventListener("change", async e => {
   if (dirty && !confirm("Switch builds and discard unsaved edits?")) {
@@ -635,7 +771,7 @@ $("buildPicker").addEventListener("change", async e => {
 });
 
 $("newBuildBtn").addEventListener("click", async () => {
-  const name = prompt("New build name (e.g. warlock_dread_claws)");
+  const name = prompt("New build name");
   if (!name) return;
   if (buildList.some(b => b.name === name)) { alert("That name already exists."); return; }
   const seed = emptyBuild(name);

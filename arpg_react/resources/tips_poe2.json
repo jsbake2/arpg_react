@@ -1,0 +1,169 @@
+[
+  {
+    "id": "poe2-atlas-corrupted-nexus-points",
+    "title": "Clear Every Corrupted Nexus for Free Atlas Points",
+    "body": "Corrupted Nexus markers appear as corrupted zone icons in the fog of war on your Atlas — never walk past one. Clearing each Nexus yields 2 Atlas passive points via a Crystalline Core of Knowledge. On T1–T3 maps, actively scan the fog of war for these icons; your early passive points dramatically speed up the entire endgame progression loop.",
+    "topic": "Atlas",
+    "classes": [],
+    "source_label": "Mobalytics",
+    "source_url": "https://mobalytics.gg/poe-2/guides/how-to-get-atlas-skill-points",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "poe2-atlas-boss-maps-waystone-sustain",
+    "title": "Run Boss Maps to Sustain High-Tier Waystones",
+    "body": "Boss maps return a Waystone at the same tier or higher after completion, forming the core sustain loop for Atlas progression. Prioritize boss maps whenever your Waystone supply starts thinning out at higher tiers. Your first 6 Atlas passive points should reinforce map sustain before you invest in loot-quantity nodes.",
+    "topic": "Atlas",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/poe2/getting-started/atlas-tips-and-tricks",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "poe2-atlas-tower-tablet-overlap",
+    "title": "Overlap Tower Radii with Precursor Tablets for Double-Dipping",
+    "body": "Place Breach (or other mechanic) Precursor Tablets into Lost Towers when at least 7 uncleared maps sit within the tower's radius. If a second Tower is nearby, load it with a matching Tablet too — overlapping radii apply the mechanic to the same maps twice, compounding rewards. In 0.4 you no longer need to physically interact with towers to activate them, so the workflow is faster than ever.",
+    "topic": "Atlas",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/poe2/meta/currency-meta",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "poe2-mapping-vaal-orb-waystone-t16",
+    "title": "Vaal Orb Waystones for a 25% Shot at Tier 16",
+    "body": "Corrupting a Waystone with a Vaal Orb has a 25% chance to raise its tier by 1 — the primary way to obtain Tier 16 Waystones. A separate 25% outcome locks one set of affixes and rerolls the other, which is the main path to 6-mod Waystones. Do this only after you already have 1–2 good mods so you're not gambling on a blank slate.",
+    "topic": "Mapping",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/poe2/resources/rolling-waystones-and-precursor-tablets",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "poe2-mapping-open-layout-breach",
+    "title": "Pick Open-Layout Maps for Breach: Savanna, Penitentiary, Creek",
+    "body": "Breach profit in patch 0.4 comes almost entirely from Breach Hands and Splinters, not rare monster drops. Open-layout maps like Savanna, Penitentiary, and Creek concentrate monsters efficiently — in maps like Marrow, two Breaches in one run can exceed one Divine Orb in Splinters. Rotate sides during each Breach instead of tunneling one direction to hit as many Hands as possible.",
+    "topic": "Mapping",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/poe2/meta/currency-meta",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "poe2-currency-exchange-dump-tab",
+    "title": "Use the Currency Exchange and Dump Tab for Efficient Selling",
+    "body": "Bulk-sell common currencies and stackable items through the in-game Currency Exchange rather than listing them individually on the trade site. For rare items you can't quickly price-check, drop them into a Dump Tab and list the whole tab at once to avoid wasting mapping time. Reserve manual price-checking for high-value uniques only, using the official trade site to search by item category and mod values.",
+    "topic": "Currency",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/poe2/resources/currency-guide",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "poe2-currency-chaos-orb-two-good-mods",
+    "title": "Chaos-Orb Waystones with Only One Good Mod to Fish for Two",
+    "body": "If a Waystone has exactly one desirable modifier, use a Chaos Orb to reroll all affixes and fish for a second good mod. Once you have two strong mods (e.g. 'Monsters have one additional affix' + high item quantity), stop spending currency — the marginal value of a third mod rarely justifies the extra Chaos Orbs. Waystones with high Rare Monster count and Item Quantity are the most valuable to sell or self-use.",
+    "topic": "Currency",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/poe2/resources/rolling-waystones-and-precursor-tablets",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "poe2-endgame-arbiter-ignite-charm",
+    "title": "Equip an Ignite Charm Before Fighting the Arbiter of Ash",
+    "body": "The Arbiter of Ash deals an enormous amount of Fire damage and can apply Ignite reliably. Surviving that Ignite is often the difference between a kill and a wipe, so slot an Ignite Charm (Smoldering Charm) before entering the Burning Monolith. Some of his attacks flash red with an audio cue — those are mandatory dodge-roll moments that cannot be blocked or mitigated normally.",
+    "topic": "Endgame",
+    "classes": [],
+    "source_label": "Mobalytics",
+    "source_url": "https://mobalytics.gg/poe-2/guides/arbiter-of-ash",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "poe2-endgame-uber-arbiter-calamity-fragments",
+    "title": "Unlock Uber Arbiter Only After Earning All 8 Boss Atlas Points",
+    "body": "Calamity Fragments (Primary, Secondary, Tertiary) — required for Uber Arbiter — only drop from Citadel bosses after you have all 8 Atlas passive points from the boss atlas tree. Attempting to farm them before that threshold wastes runs. Crucially, each Citadel can drop more than one Fragment, so revisiting the same Citadel on a new Atlas seed is a valid farming strategy.",
+    "topic": "Endgame",
+    "classes": [],
+    "source_label": "Mobalytics",
+    "source_url": "https://mobalytics.gg/poe-2/guides/uber-arbiter-calamity-fragments",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "poe2-endgame-olroth-remnant-mods-ignored",
+    "title": "Olroth Ignores Logbook Remnant Mods — Stack Them Freely",
+    "body": "Olroth, Origin of the Fall is found only in ilvl 79+ Expedition Logbooks — blow up the Skull icon on the map to reveal the entrance. The powerful Remnant modifiers that affect all other monsters in the Logbook do NOT apply to Olroth himself, so you can freely stack dangerous-but-rewarding Remnant mods to juice Expedition loot without making the boss harder.",
+    "topic": "Endgame",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/poe2/bosses/olroth-origin-of-the-fall-boss-guide",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "poe2-endgame-trialmaster-buy-missing-fate",
+    "title": "Buy Missing Fate Fragments from Trade to Skip Redundant Ultimatum Runs",
+    "body": "Accessing the Trialmaster requires one each of Cowardly Fate, Deadly Fate, and Victorious Fate — each drops from a different 10th-round boss in a level 75+ Inscribed Ultimatum. Because the boss assignment is random, you may keep getting the same Fate. If you're missing one, buy it directly from the trade site rather than grinding more Ultimatums. Use ilvl 75+ Ultimatums to guarantee the full 10-trial run length.",
+    "topic": "Endgame",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/poe2/bosses/the-trialmaster-boss-guide",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "poe2-endgame-soul-cores-trial-chaos",
+    "title": "Farm Trial of Chaos Rounds 4, 7, and 10 for Soul Cores",
+    "body": "Soul Cores drop exclusively from the boss encounters at rounds 4, 7, and 10 of the Trial of Chaos. Unlike Runes, Soul Cores provide percentage-based stats or Spirit — for example, the Soul Core of Topotante grants Elemental Penetration, a powerful multiplier for elemental builds. They are highly tradeable if your build doesn't need a specific Core.",
+    "topic": "Endgame",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/poe2/resources/trial-of-chaos",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "poe2-general-loot-filter-strictness",
+    "title": "Start Semi-Strict on FilterBlade; Switch to Strict at T10+ Maps",
+    "body": "Use Neversink's filter from FilterBlade.xyz — it offers 7 strictness levels from Soft to Uber-Plus-Strict. Start on Semi-Strict for campaign and early atlas so you don't miss useful bases, then upgrade to Strict or Very Strict once you're farming T10+ maps and rare bases become more common. Press Alt in-game to temporarily reveal hidden items whenever you're unsure if the filter is hiding something valuable.",
+    "topic": "General",
+    "classes": [],
+    "source_label": "Mobalytics",
+    "source_url": "https://mobalytics.gg/poe-2/guides/loot-filter-guide",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "poe2-general-charms-boss-specific",
+    "title": "Pre-Slot Boss-Specific Charms Before Pinnacle Encounters",
+    "body": "Charms trigger automatically on a specific condition (e.g. taking Fire damage triggers a Ruby Charm) and consume 60–80 charges, which regenerate from killing monsters. Crucially, Charms cannot roll Rare rarity, so don't waste crafting currency trying to up their rarity. Before entering a pinnacle boss arena, swap in charms tuned to that boss's damage type — for example, a Thawing Charm (Freeze immunity) for cold-heavy encounters and a Smoldering Charm (Ignite immunity) for the Arbiter.",
+    "topic": "General",
+    "classes": [],
+    "source_label": "Mobalytics",
+    "source_url": "https://mobalytics.gg/poe-2/guides/charms",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "poe2-class-witchhunter-crossbow-mapping",
+    "title": "Witchhunter (Mercenary) Is the Most Complete All-Rounder in 0.4",
+    "body": "Witchhunter is broadly regarded as the strongest all-round ascendancy in patch 0.4. Crossbow grenade builds output exceptional burst damage, while Suppression and Pin synergies give the ascendancy more survivability than most casters. The explosion-on-kill passive shreds map packs without downtime, making it a strong choice for players who want a single character to handle all content from maps through pinnacle bosses.",
+    "topic": "Class",
+    "classes": [
+      "Mercenary"
+    ],
+    "source_label": "Mobalytics",
+    "source_url": "https://mobalytics.gg/poe-2/tier-list",
+    "added_date": "2026-05-21",
+    "pinned": false
+  }
+]

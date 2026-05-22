@@ -1,0 +1,202 @@
+[
+  {
+    "id": "d4-s13-talisman-unlock-early",
+    "title": "Unlock the Talisman System Before Anything Else",
+    "body": "The Talisman is a dedicated inventory panel (1 Seal + up to 6 Charm slots) added with Lord of Hatred — it is entirely separate from your armour, weapons, and jewellery. Complete the 'Last of the Horadrim' main questline during the campaign to unlock it; skipping this locks you out of a full build layer. Charms can replicate Unique item effects and activate Set bonuses, freeing gear slots you previously had to fill with specific Uniques.",
+    "topic": "Seasonal",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/d4/resources/talisman-charms-sets",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "d4-s13-war-plans-playlist",
+    "title": "Use War Plans as Your Endgame Activity Playlist",
+    "body": "War Plans, found at the command table in Temis (Skovos), lets you queue up to five endgame activities — Helltides, Undercity, Nightmare Dungeons, Lair Bosses, Infernal Hordes, and The Pit — and awards skill-tree upgrades that customise how each activity plays. Treating activities in isolation wastes the bonus progression and rewards War Plans chains together. Unlock the Lair Boss skill tree at Torment 1 and the Pit skill tree after clearing Season Rank II (Hellish Descent capstone).",
+    "topic": "Endgame",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/d4/resources/war-plans",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "d4-s13-pit-unlocks-glyphs",
+    "title": "Complete Season Rank II to Unlock Glyph Upgrades",
+    "body": "In Season 13, Paragon Glyph upgrades are gated behind The Pit of the Artificers, not Nightmare Dungeons. You cannot level a single Glyph until you clear the Hellish Descent capstone dungeon (Season Rank II). Prioritise this step the moment you hit the appropriate power level — all Paragon Board scaling is frozen until you do.",
+    "topic": "Glyphs",
+    "classes": [],
+    "source_label": "Boostmatch",
+    "source_url": "https://boostmatch.gg/blog/diablo-4/articles/diablo-4-season-13-lord-of-hatred-paragon-guide",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "d4-s13-glyph-radius-thresholds",
+    "title": "Hit Glyph Attribute Thresholds — Radius Upgrades Unlock Big Bonuses",
+    "body": "Every Glyph has a secondary effect tied to a specific attribute total allocated within its radius. Glyphs expand from radius 3 → 4 at Glyph Level 15, then → 5 at Level 50; at Level 51 the Glyph upgrades to Legendary rarity and gains an additional passive effect. The Season 13 glyph level cap is 150, so plan Paragon Board layouts to maximise attribute nodes within the radius before levelling the Glyph.",
+    "topic": "Glyphs",
+    "classes": [],
+    "source_label": "Icy Veins",
+    "source_url": "https://www.icy-veins.com/d4/guides/paragon-glyph-guide/",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "d4-s13-pit-target-elites",
+    "title": "Chase Elites First in The Pit for Maximum Progression",
+    "body": "Elite monsters contribute the most progress toward the Pit's completion bar. Map your route around elite packs, killing trash mobs only as you pass through — never backtrack just for small enemies. Monster scaling in Season 13's Artificer's Tower has been overhauled so enemies are more dangerous; staying mobile and bursting elites is more important than ever to beat the timer.",
+    "topic": "Pit",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/d4/resources/pit-guide",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "d4-s13-runeword-overflow",
+    "title": "Engineer Runeword Overflow for a Permanent Damage Bonus",
+    "body": "Overflow happens when your Rune of Ritual generates more Offering than the Rune of Invocation requires. The surplus directly scales up the triggered effect. Pair a high-generation Ritual Rune with an Invocation that has a low activation threshold, and monitor the purple Offering icon in your buff bar to confirm you are consistently overflowing. Choosing Runewords by trigger frequency alone ignores this mechanic and leaves damage on the table.",
+    "topic": "General",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/d4/resources/runewords-overview",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "d4-s13-runewords-equip-limit",
+    "title": "You Can Only Socket Two Runewords — No Duplicate Runes",
+    "body": "You are limited to equipping two Runewords simultaneously across all gear. Additionally, you cannot use the same rune twice across both Runewords, so plan your pair before farming. Rarity (Common → Legendary) affects both Offering generation strength and trigger power, making Legendary Runes a meaningful endgame upgrade. Kurast Undercity with the appropriate Tribute and Lair Boss kills are the most reliable Legendary Rune sources.",
+    "topic": "General",
+    "classes": [],
+    "source_label": "Icy Veins",
+    "source_url": "https://www.icy-veins.com/d4/guides/runewords-guide/",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "d4-s13-horadric-cube-legendary-rune-craft",
+    "title": "Craft Any Specific Legendary Rune via the Horadric Cube",
+    "body": "The Horadric Cube contains a crafting recipe for every Legendary Rune in the game. The cost is five Legendary Runes of any type. If you have surplus copies of one Legendary Rune and are missing a specific one your build needs, the Cube conversion is the most direct route rather than relying on RNG drops.",
+    "topic": "General",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/d4/resources/horadric-cube",
+    "added_date": "2026-05-21",
+    "pinned": true
+  },
+  {
+    "id": "d4-s13-undercity-mythic-tribute",
+    "title": "Stack the Undercity Tribute of Armaments for Burst Mythic Drops",
+    "body": "The Undercity in Skovos is the highest burst source for Mythic Unique items in Season 13. Craft a Mythic Tribute of Armaments (5× Legendary Greater Tributes of Armaments via the Horadric Cube), unlock the left-side Undercity War Plans skill tree for bonus tribute chests, and bring a fast-clearing build that can beat the timer. Portal Prankster bonuses further multiply total payout, making multi-Mythic single-run drops possible.",
+    "topic": "Endgame",
+    "classes": [],
+    "source_label": "GAMES.GG",
+    "source_url": "https://games.gg/diablo-iv/guides/how-to-farm-mythic-uniques-in-diablo-4-season-13/",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "d4-s13-masterworking-goblin-sigil",
+    "title": "Use Goblin NMD Sigils to Maximise Obducite for Masterworking",
+    "body": "Obducite (the core Masterworking material for Quality ranks 1–3) drops from Nightmare Dungeons, Undercity with a Tribute of Refinement, and Infernal Hordes. The single best source is a Nightmare Dungeon sigil with the Treasure Breach (Goblin) affix — ideally run a rotation with three other players, each using their own Goblin sigil to chain four consecutive goblin dungeons. Mid-rank (4–8) upgrades require Ingolith and high-rank (9–12) require Neathiron, both from the same activity pool but at higher difficulty.",
+    "topic": "Endgame",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/d4/resources/masterworking-guide",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "d4-s13-tempering-scroll-restoration",
+    "title": "Reroll Tempers Infinitely with Scrolls of Restoration",
+    "body": "Since Season 11, Tempering lets you pick the desired affix type in advance — only the rolled value is random. If you land the right affix but a poor roll, use a Scroll of Restoration (found in Infernal Hordes) to reset the temper and reroll the value. This effectively eliminates the old brick risk and makes grinding for a Greater Affix temper deterministic if you have enough Scrolls.",
+    "topic": "General",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/d4/resources/tempering-guide",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "d4-s13-helltide-mindcage-stack",
+    "title": "Stack Up to 3 Profane Mindcages in Helltide for Amplified Rewards",
+    "body": "Each Profane Mindcage consumed raises Helltide monster level by 10 and boosts Aberrant Cinder drop rates; the buff stacks up to three times. The War Plans left-path Helltide upgrade also delivers Profane Mindcages as rewards, making it the recommended first unlock. Activate all three before engaging Hellwyrm ambushes to maximise Cinder income and Boss Trophy drops simultaneously.",
+    "topic": "Seasonal",
+    "classes": [],
+    "source_label": "Icy Veins",
+    "source_url": "https://www.icy-veins.com/d4/guides/helltide-guide/",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "d4-s13-lair-key-summoning-split",
+    "title": "You Don't Need a Lair Key to Summon — Only to Open the Hoard",
+    "body": "Lair Boss summoning materials and Lair Boss Hoard Keys are two separate resources. You can summon and kill a boss without a Hoard Key — your materials are safe in your stash even if you die. Only bring and use your key when you are confident in the kill. Use Undercity with the Tribute of Titans to target-farm Hoard Keys directly, as this is the only activity with a meaningful key-drop influence. Every player in the party must contribute their own key to receive loot from the Hoard.",
+    "topic": "Endgame",
+    "classes": [],
+    "source_label": "Icy Veins",
+    "source_url": "https://www.icy-veins.com/d4/guides/lair-boss-system-guide/",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "d4-s13-paladin-oath-commit-early",
+    "title": "Paladin: Pick Your Oath at Level 15 — It Defines Your Entire Build",
+    "body": "The Paladin's Oath system unlocks at level 15 and locks in your combat archetype: Zealot, Juggernaut, Judicator, or Disciple. Each Oath introduces a unique secondary resource and modifies skill behaviour — Disciple, for example, enables Arbiter Form on cooldown skills and grants 50% bonus damage while active. Do not delay choosing: the Oath shapes every gear, glyph, and Paragon Board decision from that point onward. For new players, Hammerdin with Disciple Oath is the strongest all-around Season 13 leveling and endgame setup.",
+    "topic": "Class",
+    "classes": [
+      "Paladin"
+    ],
+    "source_label": "Icy Veins",
+    "source_url": "https://www.icy-veins.com/d4/guides/arbiter-paladin-build/",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "d4-s13-gems-horadric-upgrade-gem-strength",
+    "title": "Upgrade Gems in the Horadric Cube, Then Roll Gem Strength on Weapons",
+    "body": "The Horadric Cube can upgrade gems beyond the Jeweler's maximum tier. A Flawless Horadric Diamond delivers a significant all-damage boost in a weapon socket — one of the strongest single-slot endgame upgrades available. After socketing the upgraded gem, roll for the Gem Strength affix on the weapon via Tempering to multiply the gem's value further. The loop is: farm gems → upgrade in Cube → socket into weapon → temper Gem Strength → push harder content.",
+    "topic": "Gems",
+    "classes": [],
+    "source_label": "AOEAH",
+    "source_url": "https://www.aoeah.com/news/4576--diablo-4-secret-horadric-cube-recipes--crafting-tips-loh--s13",
+    "added_date": "2026-05-21",
+    "pinned": false
+  },
+  {
+    "id": "d4-s13-horadric-jewel-cube-only",
+    "title": "Never Dismantle Horadric Jewels at the Jeweler — Use Cube Only",
+    "body": "Dismantling Horadric Jewels at the Jeweler returns a fraction of their actual value (100,000 fragments instead of the expected 25,000,000). Always break down Horadric Jewels exclusively through Horadric Cube recipes to preserve full crafting value. This is a critical mistake that wastes hours of farming, so verify your vendor target before pressing confirm.",
+    "topic": "Currency",
+    "classes": [],
+    "source_label": "r/diablo4",
+    "source_url": "https://reddit.com/r/diablo4/comments/1te5ls2/psa_never_ever_dismantle_your_flawless_horadric/",
+    "added_date": "2026-05-22",
+    "pinned": false
+  },
+  {
+    "id": "d4-s13-whisper-cache-alt-leveling",
+    "title": "Speed-Level Alts with Whisper Caches from a Tormented Character",
+    "body": "Farm 8–9 Whisper caches at Torment 12 on your main, deposit them in the stash, create a new character, open all caches instantly, and jump straight into endgame farming. This skips the entire 1–70 campaign grind on subsequent characters and is the fastest alt-leveling method available. Whisper caches scale to your account's highest Torment tier, making them the ideal fast-track to pushing new builds.",
+    "topic": "Seasonal",
+    "classes": [],
+    "source_label": "r/diablo4",
+    "source_url": "https://reddit.com/r/diablo4/comments/1tdvcs7/i_just_found_out_about_the_alt_leveling_trick_with/",
+    "added_date": "2026-05-22",
+    "pinned": false
+  },
+  {
+    "id": "d4-s13-gold-find-legendary-seal",
+    "title": "Boost Gold Drops with a Legendary Seal's Gold Find Affix",
+    "body": "Equip a Legendary Seal (unique slot item) that rolls increased gold drop rate to amplify income during endgame farming sessions. While a single seal's gold find is modest, it stacks with other gold-boosting mechanics and requires no Paragon Board or gear compromise. Swap the seal in before Helltide or Undercity runs to maximize currency accumulation without sacrificing survivability or damage.",
+    "topic": "Currency",
+    "classes": [],
+    "source_label": "Wowhead",
+    "source_url": "https://www.wowhead.com/news=381647/gold-find-returns-to-diablo-4-lord-of-hatred-using-a-trick-with-legendary-seals",
+    "added_date": "2026-05-22",
+    "pinned": false
+  }
+]

@@ -54,6 +54,18 @@ DB_PATH = Path(
 )
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
+# Tips JSON lives outside the static dir so we can rsync it independently
+# (refresh_tips.py on the laptop writes the JSON, then deploys here).
+# Override via ARPG_TIPS_DIR; default to a sibling `tips/` folder next to
+# app.py — matches the server layout produced by tools/refresh_tips.py's
+# rsync target (`d4-rule-editor-app/tips/`).
+TIPS_DIR = Path(
+    os.environ.get(
+        "ARPG_TIPS_DIR",
+        str(Path(__file__).resolve().parent / "tips"),
+    )
+)
+
 # Daemon Basic-auth back-compat password — the old single-tenant value.
 LEGACY_BASIC_PASSWORD = os.environ.get("D4_EDITOR_PASSWORD", "d4123d4")
 
@@ -118,6 +130,17 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             game   TEXT NOT NULL,
             data   TEXT NOT NULL,
             PRIMARY KEY (owner, game)
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS pinned_tips (
+            owner      TEXT NOT NULL,
+            game       TEXT NOT NULL,
+            tip_id     TEXT NOT NULL,
+            pinned_at  TEXT DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (owner, game, tip_id)
         )
         """
     )
@@ -538,6 +561,100 @@ async def put_profile(request: Request):
             (owner, game, json.dumps(clean)),
         )
     return {"ok": True, "profile": clean}
+
+
+# --- tips ---------------------------------------------------------------
+# Tips JSON files are written by tools/refresh_tips.py on the laptop and
+# rsync'd here. The website is a read-only surface for the JSON itself;
+# the only mutation is per-user pin state (kept in SQLite).
+
+
+def _load_tips_file(game: str) -> list[dict[str, Any]]:
+    """Read tips JSON from disk. Returns [] if missing or malformed —
+    surface as an empty list rather than 500ing on the frontend."""
+    path = TIPS_DIR / f"tips_{game}.json"
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def _pinned_for_owner(conn, owner: str, game: str) -> set[str]:
+    rows = conn.execute(
+        "SELECT tip_id FROM pinned_tips WHERE owner = ? AND game = ?",
+        (owner, game),
+    ).fetchall()
+    return {r["tip_id"] for r in rows}
+
+
+def _pinned_union(conn, game: str) -> set[str]:
+    rows = conn.execute(
+        "SELECT DISTINCT tip_id FROM pinned_tips WHERE game = ?",
+        (game,),
+    ).fetchall()
+    return {r["tip_id"] for r in rows}
+
+
+@app.get("/api/tips/{game}")
+def get_tips(game: str, request: Request):
+    """Return the tips JSON with per-user pin state overlaid. Each tip
+    gets a `pinned_by_me` bool reflecting the current user's pin state;
+    the `pinned` field (set by refresh_tips.py from the union) means
+    'pinned by anyone.'"""
+    owner = require_owner(request)
+    g = require_game(game)
+    tips = _load_tips_file(g)
+    with db() as conn:
+        my_pinned = _pinned_for_owner(conn, owner, g)
+    for t in tips:
+        t["pinned_by_me"] = t.get("id") in my_pinned
+    return {"game": g, "tips": tips}
+
+
+@app.get("/api/tips/{game}/pinned")
+def get_my_pinned(game: str, request: Request):
+    owner = require_owner(request)
+    g = require_game(game)
+    with db() as conn:
+        return {"game": g, "pinned": sorted(_pinned_for_owner(conn, owner, g))}
+
+
+@app.get("/api/tips/{game}/pinned-union")
+def get_pinned_union(game: str, request: Request):
+    """Union of all users' pins for this game. The refresh script hits
+    this (authenticated as any user) to determine which tip IDs must be
+    preserved verbatim during the next curation pass."""
+    require_owner(request)  # any authenticated user can read
+    g = require_game(game)
+    with db() as conn:
+        return {"game": g, "pinned": sorted(_pinned_union(conn, g))}
+
+
+@app.post("/api/tips/{game}/pin")
+async def toggle_pin(game: str, request: Request):
+    owner = require_owner(request)
+    g = require_game(game)
+    body = await request.json()
+    tip_id = (body.get("tip_id") or "").strip()
+    if not tip_id:
+        raise HTTPException(status_code=400, detail="tip_id required")
+    pinned = bool(body.get("pinned"))
+    with db() as conn:
+        if pinned:
+            conn.execute(
+                "INSERT OR IGNORE INTO pinned_tips (owner, game, tip_id) "
+                "VALUES (?, ?, ?)",
+                (owner, g, tip_id),
+            )
+        else:
+            conn.execute(
+                "DELETE FROM pinned_tips WHERE owner=? AND game=? AND tip_id=?",
+                (owner, g, tip_id),
+            )
+    return {"ok": True, "tip_id": tip_id, "pinned": pinned}
 
 
 # --- pages + static -----------------------------------------------------

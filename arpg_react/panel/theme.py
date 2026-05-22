@@ -596,4 +596,148 @@ QLabel#healthLabel {{
     color: {theme.text_dim};
     font-size: 11px;
 }}
+
+/* TIPS tab — curated + reddit-fetched strategy tips per game. Stylistic
+   cousin of the LINKS tab: same card shape, filter chips up top, REFRESH
+   pill in the header. */
+QLabel#tipsTitle {{
+    color: {theme.accent};
+    font-family: {theme.font_family_display};
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    padding-bottom: 2px;
+}}
+QLabel#tipsStatus {{
+    color: {theme.text_dim};
+    font-size: 10px;
+    letter-spacing: 1px;
+}}
+QLabel#tipsEmpty {{
+    color: {theme.text_dim};
+    font-size: 11px;
+    padding: 30px 0;
+    font-style: italic;
+}}
+QPushButton#tipsRefresh {{
+    background: transparent;
+    color: {theme.accent};
+    border: 1px solid {theme.border};
+    border-radius: 4px;
+    padding: 4px 12px;
+    font-family: {theme.font_family_display};
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+}}
+QPushButton#tipsRefresh:hover {{
+    color: {theme.text};
+    border-color: {theme.accent};
+    background: {theme.card_bg_hover};
+}}
+QPushButton#tipsRefresh:disabled {{
+    color: {theme.text_dim};
+    border-color: {theme.border};
+}}
+QPushButton#tipsChip {{
+    background: {theme.card_bg};
+    color: {theme.text_dim};
+    border: 1px solid {theme.border};
+    border-radius: 10px;
+    padding: 3px 10px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+}}
+QPushButton#tipsChip:hover {{
+    color: {theme.text};
+    border-color: {theme.accent};
+}}
+QPushButton#tipsChip[active="true"] {{
+    background: {theme.accent};
+    color: {theme.bg};
+    border-color: {theme.accent};
+}}
+QScrollArea#tipsScroll {{
+    background: transparent;
+    border: none;
+}}
+QScrollArea#tipsScroll QWidget#tipsList {{
+    background: transparent;
+}}
+QFrame#tipCard {{
+    background: {theme.card_bg};
+    border: 1px solid {theme.border};
+    border-radius: 6px;
+}}
+QFrame#tipCard:hover {{
+    background: {theme.card_bg_hover};
+    border-color: {theme.accent};
+}}
+QLabel#tipTopic {{
+    background: {theme.card_bg_hover};
+    color: {theme.accent};
+    border: 1px solid {theme.border};
+    border-radius: 8px;
+    padding: 1px 8px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+}}
+QLabel#tipClass {{
+    background: transparent;
+    color: {theme.text_label};
+    border: 1px solid {theme.border};
+    border-radius: 8px;
+    padding: 1px 8px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+}}
+QLabel#tipPinned {{
+    background: {theme.accent};
+    color: {theme.bg};
+    border: 1px solid {theme.accent};
+    border-radius: 8px;
+    padding: 1px 8px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+}}
+QLabel#tipSource {{
+    color: {theme.text_dim};
+    font-size: 10px;
+    letter-spacing: 0.5px;
+}}
+QLabel#tipAge {{
+    color: {theme.text_dim};
+    font-size: 10px;
+}}
+QLabel#tipTitle {{
+    color: {theme.text};
+    font-family: {theme.font_family_display};
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}}
+QLabel#tipBody {{
+    color: {theme.text_label};
+    font-size: 11px;
+    line-height: 1.4;
+}}
+QPushButton#tipOpen {{
+    background: transparent;
+    color: {theme.accent};
+    border: 1px solid {theme.border};
+    border-radius: 4px;
+    padding: 3px 12px;
+    font-family: {theme.font_family_display};
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 2px;
+}}
+QPushButton#tipOpen:hover {{
+    color: {theme.text};
+    border-color: {theme.accent};
+}}
 """

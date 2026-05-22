@@ -31,6 +31,7 @@
     <button class="tab" data-tab="skills">SKILLS</button>
     <button class="tab" data-tab="rules">RULES</button>
     <button class="tab" data-tab="potion">POTION</button>
+    <button class="tab" data-tab="tips">TIPS</button>
     <button class="tab" data-tab="profile">PROFILE</button>
   </nav>
 
@@ -39,14 +40,14 @@
       <h2>Identity</h2>
       <p class="hint">Skill-bar slot positions, orb fill levels, and boss / mount detection are auto-calibrated against the in-game UI — no per-build pixel coordinates or colors are needed here. Just rules.</p>
       <div class="grid two">
-        <label>Name <input type="text" id="b_name" placeholder="warlock_dread_claws"></label>
+        <label>Name <input type="text" id="b_name" placeholder="Build Name"></label>
         <label>Class
           <select id="b_class">
             <option value="">— none —</option>
           </select>
         </label>
       </div>
-      <label class="full">Description <input type="text" id="b_description" placeholder="Warlock — Dread Claws"></label>
+      <label class="full">Description <input type="text" id="b_description" placeholder="Build Description"></label>
       <label class="full">Build URL <input type="url" id="b_url" placeholder="https://mobalytics.gg/..."></label>
       <label>Default jitter %
         <input type="number" id="b_jitter" min="0" max="100" step="0.5" value="17">
@@ -88,6 +89,17 @@
       <label>
         <input type="checkbox" id="p_enabled"> Enabled
       </label>
+    </section>
+
+    <section class="tabpanel" data-tab="tips">
+      <h2>Tips <span class="muted">(curated daily — pin to keep)</span></h2>
+      <p class="hint">Pin a tip with the 📌 button to lock it in — the daily refresh script will preserve any pinned tip verbatim, even when newer content would have replaced it. Pins are per-user; the union of all users' pins is what gets protected during refresh.</p>
+      <div class="tips-toolbar">
+        <button class="btn ghost" id="tipsRefreshBtn" title="Re-fetch tips and pin state">↻ REFRESH</button>
+        <span id="tipsStatus" class="muted"></span>
+      </div>
+      <div id="tipsChips" class="tips-chips"></div>
+      <div id="tipsList" class="tips-list"></div>
     </section>
 
     <section class="tabpanel" data-tab="profile">
