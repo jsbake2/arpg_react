@@ -93,36 +93,6 @@ DEFAULT_KEYMAP_BY_GAME: dict[str, dict[str, str]] = {
 }
 
 
-def _normalize_mouse_button_string(s: str) -> str:
-    """Map any old 'LMB'/'RMB' string to the new 'L'/'R'."""
-    upper = s.strip().upper()
-    if upper in ("LMB", "L", "LEFT"):
-        return "L"
-    if upper in ("RMB", "R", "RIGHT"):
-        return "R"
-    return upper
-
-
-class RuleType(str, Enum):
-    DISABLED = "disabled"               # alert only, never auto-input
-    CAST_WHEN_READY = "cast_when_ready" # bad→good transition fires (default)
-    INTERVAL = "interval"               # periodic spam every interval_ms
-    CHAINED_ONLY = "chained_only"       # never fires from its own watcher; chain target only
-
-
-class ChainStep(BaseModel):
-    """One downstream press in a chain. `delay_ms` is the wait BEFORE this
-    press (per-step), giving precise control of combo timing. `require_ready`
-    forces the engine to skip the step if the target slot's pixel says the
-    skill isn't ready — useful for combos where firing a non-ready ability
-    would waste a global cooldown.
-    """
-
-    slot: HotkeyKind
-    delay_ms: int = 80
-    require_ready: bool = False
-
-
 class EventConfig(BaseModel):
     muted: bool = False
     warn_at_seconds: list[int] = Field(default_factory=list)
@@ -131,22 +101,21 @@ class EventConfig(BaseModel):
 
 
 class WatcherConfig(BaseModel):
-    """One hotkey rule + its pixel watcher.
+    """Legacy v1 per-hotkey watcher record.
 
-    The pixel watcher tracks the captured-good-color presence per tick (used
-    for state display, CAST_WHEN_READY firing, and chain `require_ready`
-    gating). The rule_type determines how/when the slot fires its press:
+    The v2 rule engine + detector path replaces this — slot state comes from
+    `BuildV2.slot_monitors` and rules live in `BuildV2.rules`. This shape
+    is still constructed in two narrow places:
 
-      DISABLED           never auto-presses (alerts only)
-      CAST_WHEN_READY    fires on bad→good pixel transition (default)
-      INTERVAL           fires every `interval_ms` (jitter applied);
-                         respects pixel state if `respect_pixel_state` is True
-      CHAINED_ONLY       only fires when chained from another rule
+      * `--setup` CLI (`watchers/setup.py`): the crosshair pixel-picker that
+        writes legacy v1 builds. Bit-rotted; preserved for back-compat with
+        old builds on disk.
+      * v2 engine alert path: a synthetic instance is built for the
+        dispatcher's `WatcherConfig`-shaped API (`rule_engine_v2.py`).
 
-    Any rule that fires also fires its `chain` (sequenced presses with
-    per-step delays). `jitter_pct` adds ±N% uniform jitter to all timing
-    values in this rule (cooldown, press_delay, interval, chain delays) so
-    the cadence reads as human, not scripted.
+    No v2 production code reads the old `rule_type`/`chain`/`interval_ms`/
+    `cooldown_seconds`/`press_delay_ms`/`jitter_pct`/`respect_pixel_state`
+    fields, so they've been removed.
     """
 
     hotkey: HotkeyKind
@@ -154,19 +123,9 @@ class WatcherConfig(BaseModel):
     pixel_y: int
     good_color: tuple[int, int, int]
     color_tolerance: int = 20
-    cooldown_seconds: float = 5.0
-    press_delay_ms: int = 80
     enabled: bool = True
     sound_enabled: bool = True
     input_enabled: bool = False
-
-    # Phase 2 automation
-    name: str = ""
-    rule_type: RuleType = RuleType.CAST_WHEN_READY
-    interval_ms: int = 1000
-    jitter_pct: float = 5.0
-    respect_pixel_state: bool = True
-    chain: list[ChainStep] = Field(default_factory=list)
 
 
 CLASS_NAMES: tuple[str, ...] = (

@@ -268,6 +268,32 @@ def test_combo_dispatch_with_per_step_delays():
     assert pressed == [HotkeyKind.KEY_1, HotkeyKind.KEY_2, HotkeyKind.KEY_3]
 
 
+def test_press_delay_ms_honored_for_target_and_chain_steps():
+    """Rule.press_delay_ms is the input-latency floor applied to every
+    press the rule produces — both the target and every queued chain step.
+    With zero jitter, the value reaches InputController.fire verbatim."""
+    inp = NullInputController()
+    rule = Rule(
+        name="combo", target=HotkeyKind.KEY_1, cast_type=CastType.COMBO,
+        wait_mode=WaitMode.FIRE_NOW_REGARDLESS,
+        cooldown_seconds=10.0,
+        press_delay_ms=42,
+        combo_steps=[
+            ComboStep(slot=HotkeyKind.KEY_2, delay_ms=50),
+            ComboStep(slot=HotkeyKind.KEY_3, delay_ms=80),
+        ],
+    )
+    eng = RuleEngineV2(
+        build=base_build([rule]), dispatcher=make_dispatcher(),
+        input_controller=inp, sampler=_all_ready_sampler(),
+    )
+    eng.tick(NOW)
+    eng.tick(NOW + timedelta(milliseconds=60))
+    eng.tick(NOW + timedelta(milliseconds=140))
+    delays = [c[1] for c in inp.calls]
+    assert delays == [42, 42, 42]
+
+
 def test_rule_gated_by_movement_does_not_fire_while_moving():
     """Rule with MOVEMENT_KEY_NOT_HELD is held off while user is moving,
     then fires once movement stops."""

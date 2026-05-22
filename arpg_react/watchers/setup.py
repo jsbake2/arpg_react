@@ -139,10 +139,6 @@ def run_setup(
         new_watcher.sound_enabled = existing.sound_enabled
         new_watcher.input_enabled = existing.input_enabled
         new_watcher.color_tolerance = existing.color_tolerance
-        new_watcher.cooldown_seconds = existing.cooldown_seconds
-        new_watcher.press_delay_ms = existing.press_delay_ms
-        new_watcher.interval_seconds = existing.interval_seconds
-        new_watcher.combo = list(existing.combo)
         action = "updated"
     else:
         action = "added"

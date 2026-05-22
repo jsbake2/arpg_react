@@ -247,6 +247,10 @@ class RuleEngineV2:
         # Per-tick freshly computed
         self.slot_states: dict[HotkeyKind, SlotState] = {}
         self.resource_fills: dict[str, float] = {}
+        # The detector's raw game-state label ("combat" / "town" / "menu" /
+        # "mounted" / "unknown"). Surfaced in the 3-second diagnostic line so
+        # the in-app console can confirm what the detector actually sees.
+        self.last_game_state: str | None = None
 
         # Persistent
         self._runtimes: dict[int, RuleRuntime] = {
@@ -254,9 +258,11 @@ class RuleEngineV2:
         }
         self._last_pressed: dict[HotkeyKind, datetime] = {}
 
-        # Pending chain queue: (fire_at, seq, target, depth, conditions)
+        # Pending chain queue: (fire_at, seq, target, depth, conditions, press_delay_ms)
+        # press_delay_ms is carried from the originating rule so chain steps
+        # honor the same input-latency setting as the rule's target press.
         self._pending: list[
-            tuple[datetime, int, HotkeyKind, int, list[Condition]]
+            tuple[datetime, int, HotkeyKind, int, list[Condition], int]
         ] = []
         self._pending_seq = 0
 
@@ -290,7 +296,8 @@ class RuleEngineV2:
             f"{hk.value}={s.value}" for hk, s in sorted(self.slot_states.items(), key=lambda kv: kv[0].value)
         )
         res = " ".join(f"{k}={v:.0%}" for k, v in self.resource_fills.items() if k != "RESOURCE_RIGHT")
-        log.info("state: %s | %s", slots or "(no slots)", res or "(no resources)")
+        gs = self.last_game_state or "?"
+        log.info("state: %s | %s | gs=%s", slots or "(no slots)", res or "(no resources)", gs)
 
         if not self._build.rules:
             return
@@ -400,6 +407,7 @@ class RuleEngineV2:
             "RESOURCE_LEFT": reading.resource_fill,
             "RESOURCE_RIGHT": 0.0,
         }
+        self.last_game_state = reading.game_state.value
         # Boss-detected lambda — wired separately below.
         self._boss_detector = lambda: reading.boss_detected
 
@@ -428,11 +436,11 @@ class RuleEngineV2:
         fired = 0
         # 2) drain pending chain fires
         while self._pending and self._pending[0][0] <= now:
-            _, _, target, depth, conds = heappop(self._pending)
+            _, _, target, depth, conds, press_delay_ms = heappop(self._pending)
             if conds and not all_conditions_met(conds, ctx):
                 log.debug("chain step %s skipped (conditions failed)", target.value)
                 continue
-            self._press(target, now, depth=depth, source="chain")
+            self._press(target, now, depth=depth, source="chain", press_delay_ms=press_delay_ms)
             fired += 1
 
         # 3) evaluate rules top-down
@@ -570,7 +578,10 @@ class RuleEngineV2:
             "fire %s (rule=%s type=%s depth=%d source=%s)",
             rule.target.value, rule.name, rule.cast_type.value, depth, source,
         )
-        self._press(rule.target, now, depth=depth, source=source)
+        self._press(
+            rule.target, now, depth=depth, source=source,
+            press_delay_ms=rule.press_delay_ms,
+        )
 
         # Schedule chain steps. Each step's effective delay is the MAX of
         # the user-specified inter-step delay and the previous skill's
@@ -586,7 +597,14 @@ class RuleEngineV2:
             self._pending_seq += 1
             heappush(
                 self._pending,
-                (fire_at, self._pending_seq, step.slot, depth + 1, list(step.conditions)),
+                (
+                    fire_at,
+                    self._pending_seq,
+                    step.slot,
+                    depth + 1,
+                    list(step.conditions),
+                    int(rule.press_delay_ms),
+                ),
             )
             prev_slot = step.slot
 
@@ -596,6 +614,7 @@ class RuleEngineV2:
         now: datetime,
         depth: int,
         source: str,
+        press_delay_ms: int = 80,
     ) -> None:
         # Per-target debounce — short hard floor against accidental dupes.
         last = self._last_pressed.get(target)
@@ -618,24 +637,13 @@ class RuleEngineV2:
                 return
         self._last_pressed[target] = now
 
-        # Synthetic config-shaped object so dispatcher's existing watcher-alert
-        # API works: it expects something with .hotkey, .enabled, .sound_enabled.
+        # Sound alert if the slot has a configured monitor — only the
+        # presence of an enabled SlotMonitorConfigV2 gates whether the
+        # press chimes audibly.
         cfg = self._build.slot_monitors.get(target.value)
-        sound_enabled = cfg is not None and cfg.enabled
-
-        if sound_enabled:
-            from arpg_react.config import WatcherConfig
-            self._dispatcher.dispatch_watcher_alert(
-                WatcherConfig(
-                    hotkey=target,
-                    pixel_x=cfg.pixel_x if cfg else 0,
-                    pixel_y=cfg.pixel_y if cfg else 0,
-                    good_color=cfg.good_color if cfg else (0, 0, 0),
-                    sound_enabled=True,
-                    enabled=True,
-                )
-            )
+        if cfg is not None and cfg.enabled:
+            self._dispatcher.dispatch_watcher_alert(target)
 
         if self._input is not None:
-            press_delay = jittered_one_sided(80, self._build.default_jitter_pct)
+            press_delay = jittered_one_sided(press_delay_ms, self._build.default_jitter_pct)
             self._input.fire(target, int(press_delay))

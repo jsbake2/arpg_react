@@ -204,6 +204,9 @@ def run(
         "events_paused": True,
         "context": GameContext.UNKNOWN,
         "override": OverrideMode.AUTO,
+        # Edge-tracker for chat-open detection — alarm fires once on the
+        # rising edge, suppression lifts automatically on the falling edge.
+        "chat_open": False,
     }
 
     commands: queue.Queue[dict[str, Any]] = queue.Queue()
@@ -424,10 +427,27 @@ def run(
                 log.warning("detector tick failed: %s", exc)
                 reading = None
 
+            # Chat-open gate — independent of game_state, overrides everything.
+            # When the in-game chat input is accepting text, our hotkey
+            # presses would be typed into chat. Suppress input regardless
+            # of override and fire a one-shot alarm on the rising edge.
+            # Auto-resumes (no manual re-enable) when chat closes.
+            chat_now = bool(reading is not None and reading.chat_open)
+            chat_prev = state["chat_open"]
+            if chat_now and not chat_prev:
+                log.warning("chat input detected — auto-cast paused until chat closes")
+                dispatcher.dispatch_chat_open_alarm()
+            elif chat_prev and not chat_now:
+                log.info("chat closed — auto-cast resumed")
+            state["chat_open"] = chat_now
+
             # Game-state gates auto-input. MENU and MOUNTED stop input
-            # entirely; AUTO/ON/OFF override still applies.
+            # entirely; AUTO/ON/OFF override still applies. Chat-open
+            # takes precedence over all of them.
             override = state["override"]
-            if override is OverrideMode.OFF:
+            if chat_now:
+                ctx = GameContext.DISABLED
+            elif override is OverrideMode.OFF:
                 ctx = GameContext.DISABLED
             elif override is OverrideMode.ON:
                 ctx = GameContext.IN_COMBAT

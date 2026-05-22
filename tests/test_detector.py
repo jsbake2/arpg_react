@@ -78,3 +78,25 @@ def test_detector_handles_grab_failure():
     assert not r.boss_detected
     for v in r.slot_status.values():
         assert v is SlotStatus.UNKNOWN
+
+
+def test_chat_open_detected_on_chat_screenshot():
+    """The salmon-pink 'Local' label in D4's chat input is unique enough
+    that the chat-open detector should fire on the chat screenshot and
+    stay quiet on every other gameplay shot."""
+    reading = _detector_for("chat_outlined_green.png").detect()
+    assert reading.chat_open is True
+
+
+@pytest.mark.parametrize("filename", [
+    "town.png",
+    "key_locations.png",
+    "key_4_active.png",
+    "key_1_cooldown.png",
+    "key_R_unavailable.png",
+    "mounted.png",
+    "boss_hp_bar.png",
+])
+def test_chat_open_false_on_non_chat_screenshots(filename: str):
+    reading = _detector_for(filename).detect()
+    assert reading.chat_open is False, f"{filename} false-positive"

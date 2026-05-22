@@ -136,6 +136,20 @@ class DetectorConfig:
     label_tolerance: int = 30        # max abs-diff per channel
     label_required_hits: int = 8     # of ~131 samples — combat shows 25+
 
+    # Chat-input detection — D4's chat input box opens at the bottom-left
+    # when the user hits Enter. We sample the pinkish/salmon "Local" channel
+    # label in the chat row; that exact color (R ~225, G/B ~175) is unique
+    # to the chat UI in D4. ~50 hits inside this bbox when chat is open;
+    # ~0 hits in any normal gameplay screenshot (town, combat, mounted,
+    # cooldown overlays — all verified). Detection lives outside the
+    # central grab_bbox so it runs an extra small ImageGrab per tick.
+    chat_x_min: int = 20
+    chat_x_max: int = 90
+    chat_y_min: int = 1404
+    chat_y_max: int = 1414
+    chat_x_step: int = 2
+    chat_required_hits: int = 8      # of ~396 samples — chat-open shows 40+
+
 
 DETECTOR_DEFAULTS = DetectorConfig()
 
@@ -189,6 +203,11 @@ def scale_detector_for(
         label_x_min=_ix(base.label_x_min),
         label_x_max=_ix(base.label_x_max),
         label_x_step=max(1, _ix(base.label_x_step)),
+        chat_x_min=_ix(base.chat_x_min),
+        chat_x_max=_ix(base.chat_x_max),
+        chat_y_min=_iy(base.chat_y_min),
+        chat_y_max=_iy(base.chat_y_max),
+        chat_x_step=max(1, _ix(base.chat_x_step)),
         hp_orb_x=_ix(base.hp_orb_x),
         resource_orb_x=_ix(base.resource_orb_x),
         orb_y_top=_iy(base.orb_y_top),
@@ -209,6 +228,7 @@ def scale_detector_for(
         label_target_rgb=base.label_target_rgb,
         label_tolerance=base.label_tolerance,
         label_required_hits=base.label_required_hits,
+        chat_required_hits=base.chat_required_hits,
     )
 
 
@@ -221,11 +241,19 @@ class DetectorReading:
     boss_detected: bool
     hp_fill: float = 0.0          # 0..1, fraction of HP orb filled
     resource_fill: float = 0.0    # 0..1, fraction of resource orb filled
+    # True iff D4's in-game chat input box is open (the user has pressed
+    # Enter and the bottom-left chat field is accepting text). When True,
+    # the daemon suppresses input regardless of game_state so hotkey
+    # presses don't get typed into chat. Orthogonal to game_state — chat
+    # can open in combat or town. Default False until the reference is
+    # captured; safe to leave unset (never triggers a false-positive).
+    chat_open: bool = False
 
     def summary(self) -> str:
         slots = " ".join(f"{k}:{v.value[:3]}" for k, v in self.slot_status.items())
         return (
             f"{self.game_state.value} boss={int(self.boss_detected)} "
+            f"chat={int(self.chat_open)} "
             f"hp={self.hp_fill:.0%} res={self.resource_fill:.0%} {slots}"
         )
 
@@ -350,6 +378,7 @@ class Detector:
                 boss_detected=False,
             )
 
+        chat = self._chat_open()
         boss = self._template_match(img, self._boss_ref)
         mounted = self._template_match(img, self._mount_ref)
         hp = self._orb_fill(img, self.cfg.hp_orb_x)
@@ -361,6 +390,7 @@ class Detector:
                 boss_detected=boss,
                 hp_fill=hp,
                 resource_fill=res,
+                chat_open=chat,
             )
         if not self._bar_visible(img):
             return DetectorReading(
@@ -369,6 +399,7 @@ class Detector:
                 boss_detected=boss,
                 hp_fill=hp,
                 resource_fill=res,
+                chat_open=chat,
             )
 
         slot_status = {hk: self._slot_state(img, hk) for hk in self.cfg.slot_x}
@@ -386,6 +417,7 @@ class Detector:
                 boss_detected=boss,
                 hp_fill=hp,
                 resource_fill=res,
+                chat_open=chat,
             )
         return DetectorReading(
             game_state=GameState.COMBAT,
@@ -393,6 +425,7 @@ class Detector:
             boss_detected=boss,
             hp_fill=hp,
             resource_fill=res,
+            chat_open=chat,
         )
 
     def _orb_fill(self, img, x: int) -> float:
@@ -502,6 +535,44 @@ class Detector:
         if body_v >= c.body_ready_min_v or body_s >= c.body_ready_min_sat:
             return SlotStatus.READY
         return SlotStatus.COOLDOWN
+
+    def _chat_open(self) -> bool:
+        """True iff D4's chat input box is currently accepting text.
+
+        Signature: D4's chat row paints a salmon-pink "Local" (or similar
+        channel) label at the leftmost edge whenever the input box is open.
+        That exact color (R ≈ 225, G/B ≈ 175, distinctly redder than gray)
+        does not appear in normal gameplay UI — verified against town,
+        combat, mounted, and various cooldown screenshots in
+        `arpg_stuff/d4/`.
+
+        The bbox lives outside the central `grab_bbox`, so this runs its
+        own tiny `ImageGrab` (one strip, ~10 rows tall, ~70 wide).
+        """
+        c = self.cfg
+        bbox = (c.chat_x_min, c.chat_y_min, c.chat_x_max + 1, c.chat_y_max + 1)
+        try:
+            img = self._grab_fn(bbox)
+        except Exception as exc:  # noqa: BLE001
+            log.debug("chat-open grab failed: %s", exc)
+            return False
+        px = img.load()
+        w, h = img.size
+        hits = 0
+        for gy in range(h):
+            for gx in range(0, w, c.chat_x_step):
+                r, g, b = px[gx, gy][:3]
+                if (
+                    r >= 200
+                    and 140 <= g <= 200
+                    and 140 <= b <= 200
+                    and r - g >= 25
+                    and r - b >= 25
+                ):
+                    hits += 1
+                    if hits >= c.chat_required_hits:
+                        return True
+        return False
 
     def _bar_visible(self, img) -> bool:
         """Scan the keybind-label row horizontally. The bar's cream-tinted

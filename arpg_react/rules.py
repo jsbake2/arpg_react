@@ -89,9 +89,11 @@ class Rule(BaseModel):
     cast_count: int = 1
     wait_for_green_clear: bool = False
     wait_mode: WaitMode = WaitMode.WAIT_FOR_ALL_READY
-    inter_step_delay_ms: int = 80
     combo_steps: list[ComboStep] = Field(default_factory=list)
 
+    # Pre-press input latency. Applied via InputController.fire to every
+    # press this rule produces (target + every chain step), one-sided
+    # jittered positive by the rule's effective jitter percent.
     press_delay_ms: int = 80
     cooldown_seconds: float = 5.0
 
