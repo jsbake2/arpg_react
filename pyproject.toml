@@ -26,6 +26,12 @@ dev = [
   "freezegun>=1.4",
   "respx>=0.21",
 ]
+# Only the daily tips-refresh script needs this — keep it out of the runtime
+# install so the daemon stays lean. Install with `pip install -e '.[refresh]'`.
+refresh = [
+  "anthropic>=0.103",
+  "feedparser>=6.0",
+]
 
 [project.scripts]
 arpg-react = "arpg_react.__main__:main"
@@ -39,6 +45,7 @@ arpg_react = [
   "resources/*.svg",
   "resources/*.png",
   "resources/*.ico",
+  "resources/*.json",
   "resources/classes/*.svg",
 ]
 

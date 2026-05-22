@@ -11,3 +11,6 @@ dist/
 *.egg
 .coverage
 htmlcov/
+
+# Daily-refresh backups of curated tips
+arpg_react/resources/tips_*.json.prev

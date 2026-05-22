@@ -45,6 +45,28 @@ Both are **read-only and non-interactive** — no game memory, no input, no scre
 
 ---
 
+## Cross-game parity — read before adding ANY feature
+
+Both D4 and POE2 are first-class targets. **Whenever you add or change a feature touching one game, explicitly evaluate whether the other game needs the same treatment.** Defaulting to "I'll come back for POE2 later" is how the codebase ends up D4-only by accident.
+
+A feature counts for parity review if it touches:
+- Detector logic (chat input, town, mounted, menu, boss, slot states, orb fills)
+- Rule-engine semantics or new condition types
+- Input gating / safety (e.g. the chat-open auto-pause is a safety feature both games need — D4 chat shipped first; POE2 chat detection is still TODO)
+- Panel/UI surfaces, themes, alert dispatch
+- Editor schema or per-build defaults
+
+For each one, ask:
+1. **Does the other game need the same behavior?** Usually yes for safety/correctness; sometimes no for game-specific UI shapes.
+2. **What does the other game's reference data look like?** Most pixel/template detection requires a fresh screenshot from POE2 even when the D4 version works perfectly.
+3. **Is this a deliberate single-game choice or just expedience?** If expedience, file it in the open-items list so it doesn't get forgotten.
+
+**Canonical example:** the D4 chat-open detector (added 2026-05-20). The pinkish "Local" channel-label signature is D4-specific UI; POE2's chat box looks different and needs its own bbox + color signature. Both games face the same risk (typing hotkeys into chat = a ban-worthy flag), so POE2 chat detection is **not optional** — it's outstanding work the moment the D4 version shipped.
+
+When you complete only one side, leave a note in the next session handoff calling out the parity gap.
+
+---
+
 ## Tech stack
 
 - **Python 3.11+**
