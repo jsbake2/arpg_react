@@ -7,7 +7,7 @@
 // hand-crafted /editor URLs without a game still work.
 const GAME = (() => {
   const g = new URLSearchParams(window.location.search).get("game") || "d4";
-  return ["d4", "poe2"].includes(g) ? g : "d4";
+  return ["d4", "poe2", "d3"].includes(g) ? g : "d4";
 })();
 
 // Slot set per game — determines what shows up in the Skills tab and
@@ -15,6 +15,10 @@ const GAME = (() => {
 const HOTKEYS_BY_GAME = {
   d4:   ["1", "2", "3", "4", "L", "R"],
   poe2: ["LMB", "MMB", "RMB", "Q", "E", "R", "T", "F"],
+  // D3 — keyboard 1-4, mouse L/R, plus Q for the health potion. No
+  // movement keys (D3 is click-to-move), so MOVEMENT_* conditions are
+  // filtered out of COND_TYPES for this game further down.
+  d3:   ["1", "2", "3", "4", "L", "R", "Q"],
 };
 const HOTKEYS = HOTKEYS_BY_GAME[GAME] || HOTKEYS_BY_GAME.d4;
 
@@ -32,6 +36,15 @@ const CLASSES_BY_GAME = {
     { value: "sorcerer",   label: "Sorcerer" },
     { value: "spiritborn", label: "Spiritborn" },
     { value: "warlock",    label: "Warlock" },
+  ],
+  d3: [
+    { value: "barbarian",      label: "Barbarian" },
+    { value: "crusader",       label: "Crusader" },
+    { value: "demon_hunter",   label: "Demon Hunter" },
+    { value: "monk",           label: "Monk" },
+    { value: "necromancer",    label: "Necromancer" },
+    { value: "witch_doctor",   label: "Witch Doctor" },
+    { value: "wizard",         label: "Wizard" },
   ],
   poe2: [
     { base: "warrior",   label: "Warrior",   ascendancies: [
@@ -114,19 +127,34 @@ const CAST_TYPES = [
   { id: "CAST_X_AND_WAIT", label: "Cast X times + wait for green clear" },
 ];
 
-const COND_TYPES = [
-  { id: "HEALTH_BELOW", label: "health below %" },
-  { id: "HEALTH_ABOVE", label: "health above %" },
-  { id: "RESOURCE_LEFT_BELOW", label: "resource left below %" },
-  { id: "RESOURCE_LEFT_ABOVE", label: "resource left above %" },
-  { id: "RESOURCE_RIGHT_BELOW", label: "resource right below %" },
-  { id: "RESOURCE_RIGHT_ABOVE", label: "resource right above %" },
-  { id: "SLOT_STATE_IS", label: "slot state is" },
-  { id: "SLOT_STATE_IS_NOT", label: "slot state is not" },
-  { id: "BOSS_DETECTED", label: "boss detected" },
-  { id: "MOVEMENT_KEY_HELD", label: "MOVING (W/A/S/D held)" },
-  { id: "MOVEMENT_KEY_NOT_HELD", label: "NOT MOVING" },
-];
+// D3 is point/click — there are no W/A/S/D movement keys to gate on, so
+// MOVEMENT_* conditions are filtered out for that game.
+const COND_TYPES = (() => {
+  const all = [
+    { id: "HEALTH_BELOW", label: "health below %" },
+    { id: "HEALTH_ABOVE", label: "health above %" },
+    { id: "RESOURCE_LEFT_BELOW", label: "resource left below %" },
+    { id: "RESOURCE_LEFT_ABOVE", label: "resource left above %" },
+    { id: "RESOURCE_RIGHT_BELOW", label: "resource right below %" },
+    { id: "RESOURCE_RIGHT_ABOVE", label: "resource right above %" },
+    { id: "SLOT_STATE_IS", label: "slot state is" },
+    { id: "SLOT_STATE_IS_NOT", label: "slot state is not" },
+    { id: "BOSS_DETECTED", label: "boss detected" },
+    { id: "MOVEMENT_KEY_HELD", label: "MOVING (W/A/S/D held)" },
+    { id: "MOVEMENT_KEY_NOT_HELD", label: "NOT MOVING" },
+    { id: "BUFF_ACTIVE", label: "buff active (pick from BUFFS tab)" },
+    // Manual trigger: true for one tick after the configured key fires.
+    // Pair with cast_type=COMBO to wire "press F8 → fire boss opener".
+    // Token format matches HotkeyController bindings: single chars
+    // ("g") or named function keys ("f1"-"f12"). The daemon installs
+    // a global listener at build-load time.
+    { id: "HOTKEY_PRESSED", label: "hotkey pressed (manual trigger)" },
+  ];
+  if (GAME === "d3") {
+    return all.filter(c => !c.id.startsWith("MOVEMENT_"));
+  }
+  return all;
+})();
 
 const SLOT_STATES = ["READY", "ACTIVE_READY", "IN_USE", "COOLDOWN", "DISABLED"];
 
@@ -217,6 +245,9 @@ function emptyRule() {
     conditions: [],
     combo_steps: [],
     press_delay_ms: 80,
+    // 0 = normal short tap; non-zero = hold key/button for N ms (channeled
+    // skills like a Druid werewolf LMB combo that needs ~500 ms wind-up).
+    hold_ms: 0,
     cooldown_seconds: 5.0,
   };
 }
@@ -300,6 +331,7 @@ function render() {
   renderSkillsTab(active);
   renderRulesTab(active);
   renderPotionTab(active);
+  renderBuffsTab(active);
 }
 
 function renderBuildPicker() {
@@ -430,6 +462,9 @@ function renderRule(b, r, idx) {
       <label>press delay ms
         <input type="number" data-f="press_delay_ms" min="0" max="500" value="${r.press_delay_ms}">
       </label>
+      <label>hold ms <small style="color:var(--text-dim)">(0 = tap; >0 = channel)</small>
+        <input type="number" data-f="hold_ms" min="0" max="5000" value="${r.hold_ms ?? 0}">
+      </label>
       <label>cooldown sec
         <input type="number" data-f="cooldown_seconds" min="0" step="0.5" value="${r.cooldown_seconds}">
       </label>
@@ -472,7 +507,7 @@ function renderRule(b, r, idx) {
     const stepsBox = ts.querySelector(".steps");
     r.combo_steps.forEach((step, si) => stepsBox.appendChild(renderComboStep(r, step, si)));
     ts.querySelector('[data-act=add-step]').onclick = () => {
-      r.combo_steps.push({ slot: "1", delay_ms: 80, conditions: [] });
+      r.combo_steps.push({ slot: "1", delay_ms: 80, hold_ms: 0, conditions: [] });
       setDirty(); render();
     };
   }
@@ -525,6 +560,8 @@ function renderComboStep(rule, step, idx) {
     </select>
     <input type="number" data-f="delay_ms" min="0" max="2000" value="${step.delay_ms}" placeholder="delay ms">
     <span style="color:var(--text-dim); font-size:11px;">delay ms</span>
+    <input type="number" data-f="hold_ms" min="0" max="5000" value="${step.hold_ms ?? 0}" placeholder="hold ms">
+    <span style="color:var(--text-dim); font-size:11px;">hold ms</span>
     <button class="remove-step" data-act="del">×</button>
   `;
   head.querySelectorAll("[data-f]").forEach(inp => {
@@ -557,10 +594,19 @@ function renderComboStep(rule, step, idx) {
 function renderCondition(arr, idx) {
   const c = arr[idx];
   const usesSlot = c.type === "SLOT_STATE_IS" || c.type === "SLOT_STATE_IS_NOT";
+  const usesBuff = c.type === "BUFF_ACTIVE";
+  const usesHotkey = c.type === "HOTKEY_PRESSED";
   const noFields = c.type === "BOSS_DETECTED"
                 || c.type === "MOVEMENT_KEY_HELD"
                 || c.type === "MOVEMENT_KEY_NOT_HELD";
-  const usesNumeric = !usesSlot && !noFields;
+  const usesNumeric = !usesSlot && !noFields && !usesBuff && !usesHotkey;
+
+  // List of (id, element) pairs the active build is currently watching —
+  // drives the BUFF_ACTIVE dropdown options. A rule can only gate on a
+  // buff variant the build is actually selecting; flipping a checkbox
+  // off in the BUFFS tab automatically drops the option here.
+  const buffOptions = selectedSeenNames(active || {});
+  const buffValues = buffOptions.map(o => o.value);
 
   // Sanitize stale fields — bad data sneaks in when the user changes
   // condition type without re-touching target/value (e.g. left-over
@@ -569,17 +615,40 @@ function renderCondition(arr, idx) {
   if (usesSlot) {
     if (!HOTKEYS.includes(c.target)) { c.target = HOTKEYS[0]; setDirty(); }
     if (!SLOT_STATES.includes(c.value)) { c.value = "READY"; setDirty(); }
+    c.buff_name = null;
+    c.hotkey_token = null;
+  } else if (usesBuff) {
+    c.target = null;
+    c.value = null;
+    c.hotkey_token = null;
+    if (buffValues.length > 0 && !buffValues.includes(c.buff_name)) {
+      c.buff_name = buffValues[0]; setDirty();
+    }
+  } else if (usesHotkey) {
+    c.target = null;
+    c.value = null;
+    c.buff_name = null;
+    if (typeof c.hotkey_token !== "string" || !c.hotkey_token) {
+      c.hotkey_token = "f8"; setDirty();
+    }
   } else if (usesNumeric) {
     if (typeof c.value !== "number") { c.value = 0.5; setDirty(); }
     c.target = null;
+    c.buff_name = null;
+    c.hotkey_token = null;
   } else {
     c.target = null;
     c.value = null;
+    c.buff_name = null;
+    c.hotkey_token = null;
   }
 
   const row = el("div", { class: "condition" });
   const slotOpts = HOTKEYS.map(h => `<option value="${h}" ${c.target===h?'selected':''}>${h}</option>`).join("");
   const stateOpts = SLOT_STATES.map(s => `<option value="${s}" ${c.value===s?'selected':''}>${s}</option>`).join("");
+  const buffOpts = buffOptions.length > 0
+    ? buffOptions.map(o => `<option value="${escAttr(o.value)}" ${c.buff_name===o.value?'selected':''}>${o.label}</option>`).join("")
+    : `<option value="">(no buff variants selected — pick some on the BUFFS tab)</option>`;
   row.innerHTML = `
     <select data-f="type">
       ${COND_TYPES.map(t => `<option value="${t.id}" ${c.type===t.id?'selected':''}>${t.label}</option>`).join("")}
@@ -587,9 +656,13 @@ function renderCondition(arr, idx) {
     ${usesSlot
       ? `<select data-f="target">${slotOpts}</select>
          <select data-f="value">${stateOpts}</select>`
-      : (usesNumeric
-          ? `<span></span><input type="number" data-f="value" min="0" max="1" step="0.05" value="${c.value ?? ''}">`
-          : `<span></span><span></span>`)}
+      : (usesBuff
+          ? `<span></span><select data-f="buff_name" ${buffOptions.length===0?'disabled':''}>${buffOpts}</select>`
+          : (usesHotkey
+              ? `<span></span><input type="text" data-f="hotkey_token" value="${escAttr(c.hotkey_token || '')}" placeholder="f8" style="text-transform:lowercase">`
+              : (usesNumeric
+                  ? `<span></span><input type="number" data-f="value" min="0" max="1" step="0.05" value="${c.value ?? ''}">`
+                  : `<span></span><span></span>`)))}
     <button class="remove-cond" data-act="del">×</button>
   `;
   row.querySelectorAll("[data-f]").forEach(inp => {
@@ -605,13 +678,29 @@ function renderCondition(arr, idx) {
         if (v === "SLOT_STATE_IS" || v === "SLOT_STATE_IS_NOT") {
           c.target = HOTKEYS[0];
           c.value = "READY";
+          c.buff_name = null;
+          c.hotkey_token = null;
+        } else if (v === "BUFF_ACTIVE") {
+          c.target = null;
+          c.value = null;
+          c.buff_name = (selectedSeenNames(active || {})[0]?.value) || null;
+          c.hotkey_token = null;
+        } else if (v === "HOTKEY_PRESSED") {
+          c.target = null;
+          c.value = null;
+          c.buff_name = null;
+          c.hotkey_token = "f8";
         } else if (v === "BOSS_DETECTED" || v === "MOVEMENT_KEY_HELD" || v === "MOVEMENT_KEY_NOT_HELD") {
           c.target = null;
           c.value = null;
+          c.buff_name = null;
+          c.hotkey_token = null;
         } else {
           // resource/health threshold conditions
           c.target = null;
           c.value = 0.5;
+          c.buff_name = null;
+          c.hotkey_token = null;
         }
         render();
       }
@@ -631,6 +720,161 @@ function renderPotionTab(b) {
   $("p_cooldown").value = p.cooldown_seconds;
   $("p_enabled").checked = p.enabled;
 }
+
+// ------------------------------------------------------------ buffs tab
+//
+// One data structure on the build:
+//   buffs[] — list of LibraryBuffConfig {id, enabled, elements[]}
+//             id is the library entry's id ("coe", ...)
+//             elements[] is the subset of variant keys to alert on
+//
+// The library itself ships server-side as a Python catalog. The editor
+// keeps its own mirror here so we can render the picker / element grid
+// without a round-trip. If the daemon ships a new library entry, add
+// it to BUFF_LIBRARY below in the same commit.
+
+const BUFF_LIBRARY = {
+  coe: {
+    label: "Convention of Elements",
+    game: "d3",
+    elements: [
+      { key: "fire",      label: "Fire" },
+      { key: "lightning", label: "Lightning" },
+      { key: "cold",      label: "Cold" },
+      { key: "physical",  label: "Physical" },
+      { key: "poison",    label: "Poison" },
+      { key: "arcane",    label: "Arcane / Holy" },
+    ],
+  },
+};
+
+// Canonical seen-name for a (library id, element key) pair. Mirrors
+// arpg_react.buffs.library.seen_name; used to build BUFF_ACTIVE option
+// values and to ensure rule-engine dropdowns stay in sync with the
+// daemon side.
+function seenName(id, elementKey) { return `${id}:${elementKey}`; }
+
+// Every (id, element) pair the active build currently watches. Drives
+// the BUFF_ACTIVE condition dropdown — rules can only gate on a buff
+// the build is actually selecting.
+function selectedSeenNames(b) {
+  const out = [];
+  for (const cfg of (b.buffs || [])) {
+    if (!BUFF_LIBRARY[cfg.id]) continue;
+    for (const k of (cfg.elements || [])) {
+      out.push({ value: seenName(cfg.id, k), label: `${BUFF_LIBRARY[cfg.id].label}: ${k}` });
+    }
+  }
+  return out;
+}
+
+function renderBuffsTab(b) {
+  if (!b.buffs) b.buffs = [];
+  // Drop entries pointing at library ids we no longer ship, or entries
+  // tagged for a different game (CoE on a D4/POE2 build, etc.). The
+  // daemon-side BuffWatcher already ignores these, but leaving them in
+  // the editor UI confuses the user. Setting dirty so the cleanup
+  // persists on next save.
+  const before = b.buffs.length;
+  b.buffs = b.buffs.filter(x => {
+    if (!x || !x.id) return false;
+    const entry = BUFF_LIBRARY[x.id];
+    if (!entry) return false;
+    if (entry.game && entry.game !== GAME) return false;
+    return true;
+  });
+  if (b.buffs.length !== before) setDirty();
+
+  // Pre-populate the "+ ADD" picker with library entries that aren't
+  // already in this build's list — and that belong to the CURRENT game.
+  // CoE (Convention of Elements) is a D3-only ring; before this filter
+  // it was offered in D4 and POE2 picker dropdowns even though the
+  // daemon-side BUFF_LIBRARY already gates entries by `game="d3"`.
+  const taken = new Set(b.buffs.map(x => x.id));
+  const sel = $("addBuffSelect");
+  if (sel) {
+    sel.innerHTML = "";
+    let any = false;
+    for (const [id, entry] of Object.entries(BUFF_LIBRARY)) {
+      if (taken.has(id)) continue;
+      if (entry.game && entry.game !== GAME) continue;
+      const o = document.createElement("option");
+      o.value = id; o.textContent = entry.label;
+      sel.appendChild(o);
+      any = true;
+    }
+    sel.disabled = !any;
+    const addBtn = $("addBuffBtn");
+    if (addBtn) addBtn.disabled = !any;
+  }
+
+  const c = $("buffsList");
+  c.innerHTML = "";
+  if (b.buffs.length === 0) {
+    c.appendChild(el("p", { class: "hint muted" },
+      ["No buffs configured yet. Pick one from the library and click + ADD."]));
+    return;
+  }
+  b.buffs.forEach((cfg, i) => c.appendChild(renderBuff(b, cfg, i)));
+}
+
+function renderBuff(b, cfg, idx) {
+  const entry = BUFF_LIBRARY[cfg.id];
+  const wrap = el("div", { class: "buff-card" });
+  if (!Array.isArray(cfg.elements)) cfg.elements = [];
+
+  const elementChecks = entry.elements.map(elem => {
+    const checked = cfg.elements.includes(elem.key) ? "checked" : "";
+    return `<label class="check"><input type="checkbox" data-elem="${escAttr(elem.key)}" ${checked}> ${elem.label}</label>`;
+  }).join("");
+
+  wrap.innerHTML = `
+    <div class="buff-meta">
+      <div class="buff-name">${entry.label}</div>
+      <div class="buff-controls">
+        <label class="check"><input type="checkbox" data-f="enabled" ${cfg.enabled !== false ? "checked" : ""}> enabled</label>
+      </div>
+      <div class="buff-elements">${elementChecks}</div>
+    </div>
+    <button class="delete-btn" data-act="del">DEL</button>
+  `;
+
+  wrap.querySelector('[data-f=enabled]').addEventListener("change", e => {
+    cfg.enabled = e.target.checked; setDirty();
+  });
+  wrap.querySelectorAll('[data-elem]').forEach(inp => {
+    inp.addEventListener("change", e => {
+      const k = e.target.dataset.elem;
+      const has = cfg.elements.includes(k);
+      if (e.target.checked && !has) cfg.elements.push(k);
+      else if (!e.target.checked && has) {
+        cfg.elements = cfg.elements.filter(x => x !== k);
+      }
+      // Keep order stable (match library order) so the JSON diff is
+      // tidy across reorderings.
+      const order = entry.elements.map(x => x.key);
+      cfg.elements.sort((a, b2) => order.indexOf(a) - order.indexOf(b2));
+      setDirty();
+    });
+  });
+  wrap.querySelector('[data-act=del]').onclick = () => {
+    if (!confirm(`Delete buff "${entry.label}"?`)) return;
+    b.buffs.splice(idx, 1); setDirty(); renderBuffsTab(b);
+  };
+  return wrap;
+}
+
+$("addBuffBtn")?.addEventListener("click", () => {
+  if (!active) return;
+  const sel = $("addBuffSelect");
+  const id = sel?.value;
+  if (!id || !BUFF_LIBRARY[id]) return;
+  if (!active.buffs) active.buffs = [];
+  if (active.buffs.some(x => x.id === id)) return;
+  active.buffs.push({ id, enabled: true, elements: [] });
+  setDirty();
+  renderBuffsTab(active);
+});
 
 // ----------------------------------------------------------- tips tab
 
@@ -1001,7 +1245,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     await refreshBuildList();
     if (buildList.length === 0) {
-      const seed = emptyBuild("untitled_build");
+      // D3 has no real builds yet — seed an empty "placeholder" so the
+      // editor renders something the user can rename when they start
+      // their first real D3 build. D4/POE2 keep the historical seed name.
+      const seedName = GAME === "d3" ? "placeholder" : "untitled_build";
+      const seed = emptyBuild(seedName);
       await API.put(seed.name, seed);
       await refreshBuildList();
       await loadActive(seed.name);

@@ -102,3 +102,160 @@ def test_d4_default_keymap_routes_correctly():
     # enum members now — must still press the right mouse button.
     assert _resolve(ic, HotkeyKind.LMB) == ("mouse", "left")
     assert _resolve(ic, HotkeyKind.RMB) == ("mouse", "right")
+
+
+def test_d3_default_modifiers_hold_shift_on_lmb():
+    """D3's L slot must always carry Shift — plain LMB in D3 issues a
+    move-to-cursor command; the bot needs Shift+LMB so the character
+    attacks in place. Bare LMB would have the bot walk off-screen
+    chasing its own cursor as soon as auto-cast starts."""
+    from arpg_react.config import DEFAULT_MODIFIERS_BY_GAME
+    mods = DEFAULT_MODIFIERS_BY_GAME["d3"]
+    assert mods.get("L") == ["shift"], (
+        "D3 L slot must default to ['shift'] to prevent move-to-cursor"
+    )
+    # D4 + POE2 stay bare — their LMB semantics differ and the user
+    # opts in to per-slot modifiers via build config later.
+    assert DEFAULT_MODIFIERS_BY_GAME["d4"] == {}
+    assert DEFAULT_MODIFIERS_BY_GAME["poe2"] == {}
+
+
+def test_set_modifiers_stores_per_slot_list():
+    ic = InputController()
+    ic.set_modifiers({"L": ["shift"], "R": ["shift", "ctrl"]})
+    # Internal shape is a tuple per slot — order matters for press
+    # sequencing (modifier press → click → modifier release in reverse).
+    assert ic._modifiers["L"] == ("shift",)
+    assert ic._modifiers["R"] == ("shift", "ctrl")
+    # Clearing removes everything.
+    ic.set_modifiers(None)
+    assert ic._modifiers == {}
+    ic.set_modifiers({})
+    assert ic._modifiers == {}
+
+
+# ----- ydotool backend ----------------------------------------------------
+#
+# Wayland (Hyprland in particular) eats pynput's XTest mouse-button
+# events before they reach games. We route mouse presses through
+# ydotool (uinput) when the daemon is reachable; keyboard stays on
+# pynput. These tests fake out subprocess.run so the assertions can
+# check exactly which ydotool invocations would land for a given
+# (slot, modifier) combination — no real input gets injected.
+
+import subprocess
+
+
+def test_mouse_press_via_ydotool_emits_click_with_modifier(monkeypatch):
+    """Pressing L (mouse) with a Shift modifier must produce three
+    ydotool invocations in order: shift down, mouse down, mouse up,
+    shift up. Validates the modifier window covers the full click."""
+    calls: list[list[str]] = []
+
+    def fake_run(args, **kwargs):
+        calls.append(list(args))
+        return subprocess.CompletedProcess(args=args, returncode=0, stdout=b"", stderr=b"")
+
+    # ydotool_path is provided explicitly → skip the auto-detect probe
+    # and the test doesn't need ydotool installed on the CI runner.
+    ic = InputController(ydotool_path="/fake/ydotool")
+    ic.set_modifiers({"L": ["shift"]})
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    from arpg_react.watchers.input_controller import HOLD_MS
+    ic._press_mouse_ydotool("left", ("shift",), HOLD_MS)
+
+    # Drop the binary path so the assertions don't drag the absolute
+    # filesystem location into every expected line.
+    arg_lists = [c[1:] for c in calls]
+    assert arg_lists == [
+        ["key", "42:1"],       # shift down (KEY_LEFTSHIFT)
+        ["click", "0x40"],     # LMB down
+        ["click", "0x80"],     # LMB up
+        ["key", "42:0"],       # shift up
+    ]
+
+
+def test_mouse_press_via_ydotool_no_modifiers(monkeypatch):
+    """No modifiers → just a clean down + up. Skips the key invocations
+    entirely so unrelated builds don't pay the ~ms key-event cost."""
+    calls: list[list[str]] = []
+
+    def fake_run(args, **kwargs):
+        calls.append(list(args))
+        return subprocess.CompletedProcess(args=args, returncode=0, stdout=b"", stderr=b"")
+
+    ic = InputController(ydotool_path="/fake/ydotool")
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    from arpg_react.watchers.input_controller import HOLD_MS
+    ic._press_mouse_ydotool("right", (), HOLD_MS)
+
+    arg_lists = [c[1:] for c in calls]
+    assert arg_lists == [
+        ["click", "0x41"],     # RMB down (0x40 | 0x01)
+        ["click", "0x81"],     # RMB up   (0x80 | 0x01)
+    ]
+
+
+def test_mouse_press_via_ydotool_uses_custom_hold_ms(monkeypatch):
+    """Channeled skill: passing hold_ms=500 must keep the mouse button
+    down for ~500 ms across the down/up split. Validates the channel
+    window so a werewolf LMB combo doesn't release prematurely."""
+    calls: list[list[str]] = []
+    sleeps: list[float] = []
+
+    def fake_run(args, **kwargs):
+        calls.append(list(args))
+        return subprocess.CompletedProcess(args=args, returncode=0, stdout=b"", stderr=b"")
+
+    def fake_sleep(secs):
+        sleeps.append(secs)
+
+    ic = InputController(ydotool_path="/fake/ydotool")
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    import arpg_react.watchers.input_controller as ic_mod
+    monkeypatch.setattr(ic_mod.time, "sleep", fake_sleep)
+
+    ic._press_mouse_ydotool("left", (), hold_ms=500)
+
+    # The sleep between down and up must be the user-specified hold,
+    # not the default HOLD_MS. Tolerance: exactly 0.5s.
+    assert 0.5 in sleeps, f"expected 0.5s sleep, got {sleeps}"
+
+
+def test_fire_default_hold_when_unset(monkeypatch):
+    """fire(hold_ms=None) should fall back to HOLD_MS — existing call
+    sites (rule_engine v2 chain steps with hold_ms=0) keep tapping at
+    the historical 25 ms window."""
+    from arpg_react.watchers.input_controller import HOLD_MS
+
+    received: list[tuple] = []
+
+    class _FakeThread:
+        def __init__(self, target, args, name, daemon):
+            received.append(args)
+        def start(self):
+            pass
+
+    import arpg_react.watchers.input_controller as ic_mod
+    monkeypatch.setattr(ic_mod.threading, "Thread", _FakeThread)
+
+    ic = InputController(ydotool_path=None)
+    # Force-initialize so fire() doesn't bail before spawning the thread.
+    ic._init_failed = False
+    ic._kbd = object()
+    ic._mouse = object()
+
+    ic.fire(HotkeyKind.KEY_1, delay_ms=80, hold_ms=None)
+    ic.fire(HotkeyKind.KEY_1, delay_ms=80, hold_ms=0)
+    ic.fire(HotkeyKind.KEY_1, delay_ms=80, hold_ms=500)
+    # args = (hotkey, delay_ms, effective_hold)
+    assert [a[2] for a in received] == [HOLD_MS, HOLD_MS, 500]
+
+
+def test_controller_without_ydotool_path_stays_on_pynput():
+    """Belt-and-suspenders: explicit None disables the ydotool branch
+    even when ydotool would have been auto-detected. Lets the user
+    override via an env knob if we add one later."""
+    ic = InputController(ydotool_path=None)
+    assert ic._ydotool_path is None

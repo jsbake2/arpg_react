@@ -19,6 +19,7 @@ from arpg_react.alerts import (
 from arpg_react.config import (
     Config,
     DEFAULT_KEYMAP_BY_GAME,
+    DEFAULT_MODIFIERS_BY_GAME,
     HotkeyKind,
     default_builds_dir,
     detect_class_from_name,
@@ -40,6 +41,7 @@ from arpg_react.editor_sync import (
     sync_profile,
 )
 from arpg_react.hotkey import HotkeyController
+from arpg_react.trigger_hotkey import TriggerHotkeyListener
 from arpg_react.ipc import (
     BuildState,
     ContextFrame,
@@ -53,7 +55,7 @@ from arpg_react.ipc import (
     status_frame_to_dict,
 )
 from arpg_react.ipc.messages import alert_frame_from_event
-from arpg_react.rules import BuildV2
+from arpg_react.rules import BuildV2, ConditionType
 from arpg_react.sources import HelltidesSource, TimerSource
 from arpg_react.timers import EventKind
 from arpg_react.watchers import InputController
@@ -70,6 +72,25 @@ log = logging.getLogger(__name__)
 
 TICK_SECONDS = 0.25
 STATUS_BROADCAST_INTERVAL = 1.0
+
+
+def _collect_trigger_tokens(build: BuildV2) -> set[str]:
+    """Walk a build's rules + combo-step conditions for every
+    HOTKEY_PRESSED token, lowercased. The TriggerHotkeyListener gets
+    this union so it only installs OS-level hooks for keys the build
+    actually cares about."""
+    tokens: set[str] = set()
+    for rule in build.rules:
+        if not rule.enabled:
+            continue
+        for cond in rule.conditions:
+            if cond.type is ConditionType.HOTKEY_PRESSED and cond.hotkey_token:
+                tokens.add(cond.hotkey_token.strip().lower())
+        for step in rule.combo_steps:
+            for cond in step.conditions:
+                if cond.type is ConditionType.HOTKEY_PRESSED and cond.hotkey_token:
+                    tokens.add(cond.hotkey_token.strip().lower())
+    return tokens
 
 
 class _IPCLogHandler(logging.Handler):
@@ -115,7 +136,20 @@ def run(
     builds_dir: Path | None = None,
     game: str = "d4",
 ) -> int:
-    builds_dir = builds_dir or default_builds_dir()
+    # Per-game scoping: each game has its own subdir under
+    # `~/.config/arpg_react/builds/`. The one-shot migration moves any
+    # flat pre-existing `builds/*.json` into `builds/d4/` so existing
+    # users don't lose D4 builds when this code first runs.
+    from arpg_react.config import _migrate_legacy_builds_root
+    _migrate_legacy_builds_root()
+    builds_dir = builds_dir or default_builds_dir(game)
+    builds_dir.mkdir(parents=True, exist_ok=True)
+    # Stash the game id early so anything constructed in this function
+    # body (dispatcher, watchers, IPC bits) can reference it. The block
+    # below that does keymap install used to be the first place it was
+    # bound, but the dispatcher needs it ~30 lines earlier now for the
+    # per-game notification title prefix.
+    _daemon_game = game
     audio = PaplayAudioPlayer(master_volume=config.audio.master_volume)
     notify = NotifySendPlayer()
     tts = Pyttsx3Player(voice=config.audio.tts_voice, rate=config.audio.tts_rate)
@@ -126,6 +160,8 @@ def run(
         tts=tts,
         events_config=config.events,
         user_sounds_dir=user_sounds_dir,
+        mutes=config.mutes,
+        game=_daemon_game,
     )
     scheduler = AlertScheduler(events_config=config.events)
     input_controller = InputController()
@@ -146,14 +182,40 @@ def run(
     # entry on the user's profile (or with no profile at all) press the
     # right thing — e.g. D4 "L" → mouse-left, POE2 "Q" → keyboard 'q'.
     # The user's editor profile then overrides any slots they've remapped.
-    _daemon_game = game
     keymap = dict(DEFAULT_KEYMAP_BY_GAME.get(_daemon_game, {}))
     cached_profile = load_cached_profile(_daemon_game)
     if cached_profile and cached_profile.get("keymap"):
         keymap.update(cached_profile["keymap"])
     input_controller.set_keymap(keymap)
+    # Per-game press modifiers (e.g. D3 holds Shift while clicking LMB
+    # so the character attacks in place instead of running to the cursor).
+    input_controller.set_modifiers(
+        DEFAULT_MODIFIERS_BY_GAME.get(_daemon_game, {})
+    )
 
-    active_build: BuildV2 = load_or_create_build_v2(config.current_build, builds_dir)
+    # Resolve the active build for THIS game. Prefer the per-game name;
+    # if missing, fall back to the first build that actually exists in
+    # this game's dir; if the dir is empty, create a "placeholder" build
+    # rather than reusing another game's name (that's how D4's
+    # "InfiniteBalls" was leaking into D3 as an empty stub).
+    requested_name = config.active_build_for(_daemon_game)
+    existing = list_builds(builds_dir)
+    if requested_name and requested_name in existing:
+        active_name = requested_name
+    elif existing:
+        active_name = existing[0]
+        log.info(
+            "daemon[%s]: no current_build set (or %r missing); using %r",
+            _daemon_game, requested_name, active_name,
+        )
+    else:
+        active_name = "placeholder"
+        log.info("daemon[%s]: no builds on disk — seeding %r", _daemon_game, active_name)
+    if config.active_build_for(_daemon_game) != active_name:
+        config.set_active_build_for(_daemon_game, active_name)
+        from arpg_react.config import save_config
+        save_config(config, config_path)
+    active_build: BuildV2 = load_or_create_build_v2(active_name, builds_dir)
     context_detector = ContextDetector(
         process_candidates=list(config.game.candidates),
     )
@@ -190,6 +252,17 @@ def run(
         mount_ref=mount_ref_scaled,
     )
 
+    # D3 has no per-slot UI calibration yet — the D4 detector's slot/orb
+    # coordinates don't match D3's hotbar. Use a lightweight D3-specific
+    # detector that only resolves the pause states (ESC menu, chat,
+    # skill/paragon/achievements panels). Rules in D3 fire without
+    # slot-state / HP / resource gating until proper D3 detector refs land.
+    d3_state_detector = None
+    if game == "d3":
+        from arpg_react.watchers.d3_state import D3StateDetector
+        d3_state_detector = D3StateDetector(screen_w=sw, screen_h=sh)
+        log.info("d3 state detector active (%dx%d)", sw, sh)
+
     engine = RuleEngineV2(
         build=active_build,
         dispatcher=dispatcher,
@@ -197,6 +270,12 @@ def run(
         movement_monitor=movement_monitor.is_moving,
     )
     engine.set_enabled(False)
+
+    # Global key listener for HOTKEY_PRESSED conditions ("press F8 to
+    # fire boss opener"). Reconfigured on every build switch so a
+    # build's set of trigger keys is what's hooked at any moment.
+    trigger_listener = TriggerHotkeyListener()
+    trigger_listener.configure(_collect_trigger_tokens(active_build))
 
     state: dict[str, Any] = {
         "engine": engine,
@@ -208,6 +287,34 @@ def run(
         # rising edge, suppression lifts automatically on the falling edge.
         "chat_open": False,
     }
+
+    # Buff watcher — D3-only in v1. Reuses the d3 state detector's screen
+    # grab so we don't pay for a second ImageGrab per tick. Search bbox
+    # comes from per-game config; if the game has no bbox configured the
+    # watcher stays None and the BUFFS tab is effectively a no-op for
+    # that game (build files still round-trip cleanly).
+    buff_watcher = None
+    if game == "d3":
+        from arpg_react.config import DEFAULT_BUFF_ROW_BBOX_BY_GAME
+        from arpg_react.watchers.buff_watcher import BuffWatcher
+        bbox = DEFAULT_BUFF_ROW_BBOX_BY_GAME.get(game)
+        if bbox is not None:
+            scaled_bbox = (
+                int(round(bbox[0] * sw / 2560)),
+                int(round(bbox[1] * sh / 1440)),
+                int(round(bbox[2] * sw / 2560)),
+                int(round(bbox[3] * sh / 1440)),
+            )
+
+            buff_watcher = BuffWatcher(
+                search_bbox=scaled_bbox,
+                on_buff_seen=dispatcher.dispatch_buff_seen,
+            )
+            buff_watcher.set_buffs(active_build.buffs)
+            log.info(
+                "buff watcher active (%d buffs, bbox=%s)",
+                len(active_build.buffs), scaled_bbox,
+            )
 
     commands: queue.Queue[dict[str, Any]] = queue.Queue()
 
@@ -229,8 +336,13 @@ def run(
         commands.put({"type": "command", "command": "toggle_watchers"})
 
     hotkey = HotkeyController(config.hotkey.toggle, _hotkey_pressed)
-    if engine.has_active_rules():
-        hotkey.start()
+    # Always start the listener at boot regardless of whether the active
+    # build has rules. Gating on has_active_rules() meant: launch with a
+    # placeholder build → hotkey never registers; later add rules via the
+    # editor → hotkey still dead because nothing re-armed it. The toggle
+    # is a no-op on a ruleless build (engine has nothing to fire), so
+    # there's no harm in always listening.
+    hotkey.start()
 
     # Background editor poll — pulls new/updated builds every N seconds.
     # No-op when D4_EDITOR_PASSWORD isn't set; the panel's SYNC button
@@ -267,9 +379,10 @@ def run(
     signal.signal(signal.SIGTERM, _handle_signal)
 
     log.info(
-        "ARPG React daemon starting (source=%s, build=%s, slots=%d, rules=%d)",
+        "ARPG React daemon starting (game=%s, source=%s, build=%s, slots=%d, rules=%d)",
+        _daemon_game,
         config.source,
-        config.current_build,
+        active_name,
         engine.watcher_count(),
         len(active_build.rules),
     )
@@ -277,19 +390,22 @@ def run(
     last_status_broadcast = 0.0
 
     def _switch_build(name: str) -> None:
-        if name == config.current_build:
+        if name == config.active_build_for(_daemon_game):
             return
         new_build = load_build_v2(name, builds_dir)
         if new_build is None:
-            log.warning("switch_build: '%s' does not exist", name)
+            log.warning("switch_build: '%s' does not exist for game=%s", name, _daemon_game)
             return
         old_enabled = state["engine"].enabled
-        config.current_build = name
+        config.set_active_build_for(_daemon_game, name)
         save_config(config, config_path)
         state["engine"].replace_build(new_build)
         state["engine"].set_enabled(old_enabled)
         state["active_build"] = new_build
         context_detector.set_watchers(list(new_build.slot_monitors.values()))
+        if buff_watcher is not None:
+            buff_watcher.set_buffs(new_build.buffs)
+        trigger_listener.configure(_collect_trigger_tokens(new_build))
         log.info("switched build → %s (rules=%d)", name, len(new_build.rules))
 
     def _toggle_event_muted(kind_str: str) -> None:
@@ -333,13 +449,18 @@ def run(
                 _switch_build(target)
         elif cmd == "reload_active_build":
             # Pull latest build JSON from disk (e.g. after web editor save).
-            latest = load_build_v2(config.current_build, builds_dir)
+            latest = load_build_v2(
+                config.active_build_for(_daemon_game) or active_name, builds_dir
+            )
             if latest is not None:
                 old_enabled = state["engine"].enabled
                 state["engine"].replace_build(latest)
                 state["engine"].set_enabled(old_enabled)
                 state["active_build"] = latest
                 context_detector.set_watchers(list(latest.slot_monitors.values()))
+                if buff_watcher is not None:
+                    buff_watcher.set_buffs(latest.buffs)
+                trigger_listener.configure(_collect_trigger_tokens(latest))
                 log.info("reloaded build %s from disk", latest.name)
         elif cmd == "set_override":
             mode = msg.get("mode")
@@ -356,7 +477,9 @@ def run(
             log.info("override cycled → %s", state["override"].value)
         elif cmd == "sync_builds":
             # Pull fresh from the editor — builds first, then profile.
-            changed = sync_once(config.editor_url, builds_dir)
+            # `game` is mandatory so we only pull this daemon's game and
+            # don't stomp the other game's local files.
+            changed = sync_once(config.editor_url, builds_dir, _daemon_game)
             new_profile = sync_profile(config.editor_url, _daemon_game)
             if new_profile and new_profile.get("keymap"):
                 merged = dict(DEFAULT_KEYMAP_BY_GAME.get(_daemon_game, {}))
@@ -368,7 +491,9 @@ def run(
             # daemon's engine still holds the build from startup. Compare
             # by Pydantic-dumped JSON so we don't blow away rule runtime
             # state when nothing actually changed.
-            latest = load_build_v2(config.current_build, builds_dir)
+            latest = load_build_v2(
+                config.active_build_for(_daemon_game) or active_name, builds_dir
+            )
             current = state.get("active_build")
             if latest is not None and (
                 current is None
@@ -384,10 +509,33 @@ def run(
                 state["engine"].set_enabled(old_enabled)
                 state["active_build"] = latest
                 context_detector.set_watchers(list(latest.slot_monitors.values()))
+                if buff_watcher is not None:
+                    buff_watcher.set_buffs(latest.buffs)
+                trigger_listener.configure(_collect_trigger_tokens(latest))
             elif changed:
                 log.info("editor_sync: %d build(s) updated (active unchanged)", changed)
             else:
                 log.info("editor_sync: no changes")
+        elif cmd == "set_mutes":
+            # Panel SETTINGS tab → flip per-alert-kind audio mutes.
+            # Payload carries every key the panel currently knows about;
+            # we trust the panel and don't merge — a missing key means
+            # "panel doesn't have a toggle for this", which only matters
+            # if we add a fourth mute later. Then we'd want a partial
+            # merge instead. Cheap to revisit then.
+            from arpg_react.config import MuteConfig
+            new_mutes = MuteConfig(
+                rule_alerts=bool(msg.get("rule_alerts", config.mutes.rule_alerts)),
+                buff_alerts=bool(msg.get("buff_alerts", config.mutes.buff_alerts)),
+                chat_alarm=bool(msg.get("chat_alarm", config.mutes.chat_alarm)),
+            )
+            config.mutes = new_mutes
+            dispatcher.set_mutes(new_mutes)
+            save_config(config, config_path)
+            log.info(
+                "mutes updated: rule=%s buff=%s chat=%s",
+                new_mutes.rule_alerts, new_mutes.buff_alerts, new_mutes.chat_alarm,
+            )
         else:
             log.debug("ignoring unknown command: %s", cmd)
 
@@ -420,19 +568,32 @@ def run(
 
             # Detector — one screen grab per tick, populates slot states +
             # HP/mana fills + boss + mount-UI flag.
+            # D3 uses a separate lightweight pause-state detector instead
+            # of the D4 detector (D4's slot/orb coordinates don't apply).
             engine_obj = state["engine"]
-            try:
-                reading = detector.detect()
-            except Exception as exc:  # noqa: BLE001
-                log.warning("detector tick failed: %s", exc)
-                reading = None
+            reading = None
+            d3_reading = None
+            if d3_state_detector is not None:
+                try:
+                    d3_reading = d3_state_detector.detect(now)
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("d3 state detector tick failed: %s", exc)
+            else:
+                try:
+                    reading = detector.detect()
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("detector tick failed: %s", exc)
+                    reading = None
 
             # Chat-open gate — independent of game_state, overrides everything.
             # When the in-game chat input is accepting text, our hotkey
             # presses would be typed into chat. Suppress input regardless
             # of override and fire a one-shot alarm on the rising edge.
             # Auto-resumes (no manual re-enable) when chat closes.
-            chat_now = bool(reading is not None and reading.chat_open)
+            if d3_reading is not None:
+                chat_now = d3_reading.reason == "chat_open"
+            else:
+                chat_now = bool(reading is not None and reading.chat_open)
             chat_prev = state["chat_open"]
             if chat_now and not chat_prev:
                 log.warning("chat input detected — auto-cast paused until chat closes")
@@ -445,12 +606,19 @@ def run(
             # entirely; AUTO/ON/OFF override still applies. Chat-open
             # takes precedence over all of them.
             override = state["override"]
-            if chat_now:
-                ctx = GameContext.DISABLED
-            elif override is OverrideMode.OFF:
+            if override is OverrideMode.OFF:
                 ctx = GameContext.DISABLED
             elif override is OverrideMode.ON:
                 ctx = GameContext.IN_COMBAT
+            elif d3_reading is not None:
+                # D3: any non-combat pause reason → DISABLED. The chat
+                # gate above already handled its rising/falling edge log.
+                ctx = (
+                    GameContext.DISABLED if d3_reading.is_paused
+                    else GameContext.IN_COMBAT
+                )
+            elif chat_now:
+                ctx = GameContext.DISABLED
             elif reading is None:
                 ctx = GameContext.UNKNOWN
             elif reading.game_state in (
@@ -463,10 +631,78 @@ def run(
                 ctx = GameContext.IN_COMBAT
             state["context"] = ctx
             state["last_reading"] = reading
+            state["d3_reading"] = d3_reading
+
+            # Buff watcher — share the d3 detector's grab (no second
+            # ImageGrab) and project matched buff names into the engine
+            # so BUFF_ACTIVE conditions and the panel can both react.
+            # Gated on:
+            #   * engine.enabled — F7 hotkey toggle. When the user
+            #     pauses automation they expect *all* alerts to stop,
+            #     including buff dings. Without this gate the watcher
+            #     kept beeping over a paused game.
+            #   * d3_reading.is_paused — in-game pause states. Buff
+            #     icons don't render over open menus and we already
+            #     short-circuit input.
+            # On either disabled branch we also nuke the watcher's
+            # rising-edge state via set_buffs(...) — a one-line trick
+            # that resets _last_seen so when the user re-enables, a
+            # buff that's still up will ring as a fresh rising edge.
+            if (
+                buff_watcher is not None
+                and state["engine"].enabled
+                and d3_state_detector is not None
+                and d3_state_detector.last_grab is not None
+                and d3_reading is not None
+                and not d3_reading.is_paused
+            ):
+                try:
+                    buff_reading = buff_watcher.evaluate(
+                        d3_state_detector.last_grab, now,
+                    )
+                    engine_obj.buffs_seen = frozenset(buff_reading.seen)
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("buff watcher tick failed: %s", exc)
+            else:
+                engine_obj.buffs_seen = frozenset()
+                if buff_watcher is not None and buff_watcher.buffs:
+                    # Re-arm rising-edge state for the next enable; the
+                    # set_buffs call is the only public path that clears
+                    # _last_seen without forgetting the configured buffs.
+                    buff_watcher.set_buffs(buff_watcher.buffs)
 
             if reading is not None:
                 engine_obj.apply_detector_reading(reading)
+            elif d3_reading is not None and d3_reading.slot_states:
+                # Translate the D3 detector's string slot_states into the
+                # engine's HotkeyKind → SlotState map so rules with
+                # SLOT_STATE_IS conditions can be evaluated for D3.
+                from arpg_react.config import HotkeyKind
+                from arpg_react.rules import SlotState as _SlotState
+                fresh: dict[HotkeyKind, _SlotState] = {}
+                for slot_name, state_name in d3_reading.slot_states.items():
+                    try:
+                        hk = HotkeyKind(slot_name)
+                        st = _SlotState(state_name)
+                    except ValueError:
+                        continue
+                    fresh[hk] = st
+                engine_obj.slot_states = fresh
+                # Project the D3 HP-orb estimate into the engine's HEALTH
+                # resource so HEALTH_BELOW conditions work for D3 builds
+                # the same way they do for D4. RESOURCE_LEFT/RIGHT stay
+                # 0 — D3 has no detector for those yet.
+                engine_obj.resource_fills = {
+                    "HEALTH": d3_reading.hp_pct,
+                    "RESOURCE_LEFT": 0.0,
+                    "RESOURCE_RIGHT": 0.0,
+                }
             engine_obj._input = None if ctx in INPUT_SUPPRESSED else input_controller  # noqa: SLF001
+            # Hand the rule engine this tick's pressed-trigger tokens.
+            # Drain even when the engine is disabled — the listener
+            # would otherwise accumulate a backlog of presses that all
+            # fire the instant the user re-enables automation.
+            engine_obj.hotkeys_pressed = trigger_listener.drain()
             engine_obj.tick(now)
 
             if ipc is not None and statuses:
@@ -482,7 +718,7 @@ def run(
                     active = state["active_build"]
                     class_name = active.class_name or detect_class_from_name(active.name)
                     build_state = BuildState(
-                        current=config.current_build,
+                        current=config.active_build_for(_daemon_game) or active.name,
                         available=list_builds(builds_dir),
                         class_name=class_name,
                         build_url=active.build_url,
@@ -491,11 +727,16 @@ def run(
                     # Surface the detector's specific game state (combat /
                     # town / mounted / menu / unknown) instead of the
                     # collapsed input-gate state, so the panel can label it.
+                    # D3 uses its own state reason ("esc_menu", "chat_open",
+                    # "modal_panel", "combat") instead of the D4 enum.
                     last_reading = state.get("last_reading")
-                    detected_state = (
-                        last_reading.game_state.value if last_reading is not None
-                        else ctx.value
-                    )
+                    last_d3 = state.get("d3_reading")
+                    if last_d3 is not None:
+                        detected_state = last_d3.reason
+                    elif last_reading is not None:
+                        detected_state = last_reading.game_state.value
+                    else:
+                        detected_state = ctx.value
                     context_frame = ContextFrame(
                         context=detected_state,
                         override=state["override"].value,
@@ -518,6 +759,11 @@ def run(
                                 muted_events=muted,
                                 build=build_state,
                                 context=context_frame,
+                                mutes={
+                                    "rule_alerts": config.mutes.rule_alerts,
+                                    "buff_alerts": config.mutes.buff_alerts,
+                                    "chat_alarm": config.mutes.chat_alarm,
+                                },
                             )
                         )
                     )
@@ -526,6 +772,7 @@ def run(
     finally:
         sync_stop.set()
         hotkey.stop()
+        trigger_listener.stop()
         movement_monitor.stop()
         if log_relay is not None:
             logging.getLogger("arpg_react").removeHandler(log_relay)

@@ -71,6 +71,16 @@ HOTKEY_ORDER_BY_GAME: dict[str, tuple[HotkeyKind, ...]] = {
         HotkeyKind.T,
         HotkeyKind.F,
     ),
+    # D3 hotbar — 1/2/3/4 keyboard, L/R mouse buttons, plus Q for potion.
+    "d3": (
+        HotkeyKind.KEY_1,
+        HotkeyKind.KEY_2,
+        HotkeyKind.KEY_3,
+        HotkeyKind.KEY_4,
+        HotkeyKind.L,
+        HotkeyKind.R,
+        HotkeyKind.Q,
+    ),
 }
 
 
@@ -90,6 +100,47 @@ DEFAULT_KEYMAP_BY_GAME: dict[str, dict[str, str]] = {
         "LMB": "lmb", "MMB": "mmb", "RMB": "rmb",
         "Q": "q", "E": "e", "R": "r", "T": "t", "F": "f",
     },
+    "d3": {
+        "1": "1", "2": "2", "3": "3", "4": "4",
+        "L": "lmb", "R": "rmb",
+        "Q": "q",
+    },
+}
+
+
+# Per-game modifier keys held during a press. D3's left mouse button
+# is the "move to cursor" command by default — bots need Shift held so
+# the character attacks in place instead of wandering off-screen. POE2's
+# LMB is whatever the player binds (usually a movement skill), but the
+# bot wants the bound skill to fire, not the movement — POE2 doesn't
+# have a universal shift-attack so we leave it bare unless the user
+# explicitly opts in via per-build config later.
+DEFAULT_MODIFIERS_BY_GAME: dict[str, dict[str, list[str]]] = {
+    "d4":   {},
+    "poe2": {},
+    "d3":   {"L": ["shift"]},
+}
+
+
+# Search region for the buff watcher (template-matching scan area).
+# Each tick the BuffWatcher crops this bbox out of the live screen grab
+# and looks for any of the build's captured buff icons inside it. Per-
+# game because the buff strip sits in a different place in every game.
+#
+# All values are at the 2560×1440 reference resolution. The watcher
+# rescales linearly for other resolutions using the same uniform-scale
+# assumption the D3 state detector and the D4 detector both rely on.
+#
+# D3 bbox calibrated 2026-05-27 against `arpg_stuff/d3/buff-area-box-
+# blue-outline.png` — the user drew the search rectangle directly on a
+# combat screenshot and we picked out its cyan-outline pixel coords.
+# Spans the full ~860 px wide horizontal strip directly above the
+# hotbar (between HP orb and resource orb). D4 + POE2 left as None
+# until those games light up the watcher (v1.1+).
+DEFAULT_BUFF_ROW_BBOX_BY_GAME: dict[str, tuple[int, int, int, int] | None] = {
+    "d4":   None,
+    "poe2": None,
+    "d3":   (875, 1200, 1735, 1290),
 }
 
 
@@ -196,8 +247,37 @@ class AudioConfig(BaseModel):
     tts_rate: int = 180
 
 
+class MuteConfig(BaseModel):
+    """Per-alert-kind audio mutes.
+
+    Three independent toggles surfaced by the panel's SETTINGS tab.
+    Persists in config.json so a mute survives daemon restarts.
+
+    `rule_alerts` — slot-ready dings emitted by the rule engine when a
+      configured rule transitions to firing. Per-rule sound_enabled
+      flags (legacy v1 watchers) are NOT replaced by this; this is a
+      blanket kill switch for the v2 watcher-alert path.
+    `buff_alerts` — buff watcher rising-edge dings (CoE, etc.).
+    `chat_alarm`  — the chat-input alarm fired when D4/D3 chat opens
+      mid-automation. The alarm exists so the user notices auto-cast
+      was suppressed; the user found it more annoying than helpful so
+      it ships muted-by-default. Visual notification still fires
+      (silent), and auto-cast suppression still happens regardless of
+      whether the audible alarm plays.
+    """
+
+    rule_alerts: bool = False
+    buff_alerts: bool = False
+    chat_alarm: bool = True
+
+
 class HotkeyConfig(BaseModel):
-    toggle: str = "f9"
+    # F7 picked after the user's session 2026-05-23 hunt: F9 alone opens
+    # the terminal on their DE, Ctrl+Alt+F9 swaps virtual terminals system-
+    # wide, and Alt+F9 was getting eaten by D3 / Battle.net overlay (it
+    # opened the leaderboard). F7 is unbound across all four games and on
+    # the user's DE. Override via ~/.config/arpg_react/config.json.
+    toggle: str = "f7"
 
 
 SourceChoice = Literal["clock", "composite", "helltides"]
@@ -230,7 +310,12 @@ class AnchorOverrides(BaseModel):
 
 
 class Config(BaseModel):
-    version: int = 1
+    # Version bumps trigger one-shot migrations in `_migrate_legacy`.
+    #   1 → 2 (2026-06-01): flip chat_alarm to muted by default; an
+    #     existing config on disk with chat_alarm=False is silently
+    #     promoted to True at load time. User can re-toggle via panel
+    #     if they actually do want the audible alarm.
+    version: int = 2
     events: dict[EventKind, EventConfig] = Field(
         default_factory=lambda: {
             EventKind.HELLTIDE: EventConfig(
@@ -253,8 +338,16 @@ class Config(BaseModel):
     # Legacy. Migrated to per-file builds/<name>.json on load and cleared.
     watchers: list[WatcherConfig] = Field(default_factory=list)
     builds: dict[str, BuildConfig] = Field(default_factory=dict)
+    # Legacy: shared-across-games active build name. Kept for back-compat
+    # with old config.json files but no longer used at read time — every
+    # game has its own `current_build_by_game[<g>]` entry. On load, this
+    # value migrates into `current_build_by_game["d4"]` once.
     current_build: str = "generic"
+    # Per-game active build name. The daemon reads this for the game it
+    # was spawned with so D4's active build never leaks into D3/POE2.
+    current_build_by_game: dict[str, str] = Field(default_factory=dict)
     audio: AudioConfig = Field(default_factory=AudioConfig)
+    mutes: MuteConfig = Field(default_factory=MuteConfig)
     hotkey: HotkeyConfig = Field(default_factory=HotkeyConfig)
     anchors: AnchorOverrides = Field(default_factory=AnchorOverrides)
     game: GameProcessConfig = Field(default_factory=GameProcessConfig)
@@ -271,6 +364,23 @@ class Config(BaseModel):
         if self.anchors.world_boss is not None:
             m[EventKind.WORLD_BOSS] = self.anchors.world_boss
         return m
+
+    def active_build_for(self, game: str) -> str | None:
+        """Return the active build name for a game, or None if none is
+        set yet. Falls back to the legacy `current_build` field only for
+        D4 (that's where it came from)."""
+        if game in self.current_build_by_game:
+            return self.current_build_by_game[game]
+        if game == "d4" and self.current_build:
+            return self.current_build
+        return None
+
+    def set_active_build_for(self, game: str, name: str) -> None:
+        self.current_build_by_game[game] = name
+        # Keep the legacy field in sync for D4 so any older code still
+        # reading `config.current_build` doesn't drift.
+        if game == "d4":
+            self.current_build = name
 
 
 def default_config_path() -> Path:
@@ -295,23 +405,72 @@ def default_socket_path() -> Path:
     return Path(base) / "arpg_react" / "daemon.sock"
 
 
-def default_builds_dir() -> Path:
+def _builds_root() -> Path:
+    """The container directory that holds per-game build subdirs."""
     return default_config_path().parent / "builds"
 
 
-def list_builds(builds_dir: Path | None = None) -> list[str]:
-    builds_dir = builds_dir or default_builds_dir()
+def default_builds_dir(game: str | None = None) -> Path:
+    """Per-game builds directory.
+
+    When `game` is provided, return `~/.config/arpg_react/builds/<game>/`
+    so D4, POE2, and D3 builds never share a filename namespace. When
+    `game` is None, return the legacy flat path for back-compat with the
+    handful of CLI commands (`builds`, `use`, legacy `setup`) that have
+    not yet been threaded with a game.
+
+    A one-time migration (see `_migrate_legacy_builds_root`) moves any
+    pre-existing flat `builds/*.json` files into `builds/d4/` since that
+    was the only game before per-game scoping landed.
+    """
+    root = _builds_root()
+    if game is None:
+        return root
+    return root / game
+
+
+def _migrate_legacy_builds_root() -> None:
+    """One-shot: move flat `builds/*.json` (pre-per-game layout) into
+    `builds/d4/`. Safe to call every startup; no-op once migration ran.
+    Without this, an existing user's D4 builds would silently disappear
+    the first time the daemon launches with per-game scoping."""
+    root = _builds_root()
+    if not root.exists():
+        return
+    legacy_files = [p for p in root.glob("*.json") if p.is_file()]
+    if not legacy_files:
+        return
+    d4_dir = root / "d4"
+    d4_dir.mkdir(parents=True, exist_ok=True)
+    for src in legacy_files:
+        dst = d4_dir / src.name
+        if dst.exists():
+            # Per-game version already wins; drop the orphan flat file.
+            src.unlink()
+        else:
+            src.rename(dst)
+
+
+def list_builds(
+    builds_dir: Path | None = None, game: str | None = None
+) -> list[str]:
+    """Names of all builds for a game. Prefer `game` over `builds_dir`."""
+    if builds_dir is None:
+        builds_dir = default_builds_dir(game)
     if not builds_dir.exists():
         return []
     return sorted(p.stem for p in builds_dir.glob("*.json"))
 
 
-def load_build(name: str, builds_dir: Path | None = None) -> BuildConfig | None:
+def load_build(
+    name: str, builds_dir: Path | None = None, game: str | None = None
+) -> BuildConfig | None:
     """Legacy loader — returns the old BuildConfig shape. Kept for the
     handful of places that still consume it. New code should use
     `load_build_v2` from arpg_react.rules + config.load_build_v2 below.
     """
-    builds_dir = builds_dir or default_builds_dir()
+    if builds_dir is None:
+        builds_dir = default_builds_dir(game)
     path = builds_dir / f"{name}.json"
     if not path.exists():
         return None
@@ -330,7 +489,9 @@ def load_build(name: str, builds_dir: Path | None = None) -> BuildConfig | None:
     return BuildConfig.model_validate(raw)
 
 
-def load_build_v2(name: str, builds_dir: Path | None = None):
+def load_build_v2(
+    name: str, builds_dir: Path | None = None, game: str | None = None
+):
     """Load a build into the v2 model, migrating legacy shapes inline.
 
     Lives in config.py (instead of rules.py) so callers don't need to know
@@ -338,7 +499,8 @@ def load_build_v2(name: str, builds_dir: Path | None = None):
     """
     from arpg_react.rules import migrate_legacy_build
 
-    builds_dir = builds_dir or default_builds_dir()
+    if builds_dir is None:
+        builds_dir = default_builds_dir(game)
     path = builds_dir / f"{name}.json"
     if not path.exists():
         return None
@@ -346,10 +508,13 @@ def load_build_v2(name: str, builds_dir: Path | None = None):
     return migrate_legacy_build(raw)
 
 
-def save_build(build, builds_dir: Path | None = None) -> Path:
+def save_build(
+    build, builds_dir: Path | None = None, game: str | None = None
+) -> Path:
     """Persist a build (BuildConfig or BuildV2). Both are pydantic models
     with .name and .model_dump() — duck-typed."""
-    builds_dir = builds_dir or default_builds_dir()
+    if builds_dir is None:
+        builds_dir = default_builds_dir(game)
     builds_dir.mkdir(parents=True, exist_ok=True)
     path = builds_dir / f"{build.name}.json"
     path.write_text(json.dumps(build.model_dump(mode="json"), indent=2))
@@ -357,40 +522,49 @@ def save_build(build, builds_dir: Path | None = None) -> Path:
 
 
 def load_or_create_build(
-    name: str, builds_dir: Path | None = None
+    name: str, builds_dir: Path | None = None, game: str | None = None
 ) -> BuildConfig:
-    build = load_build(name, builds_dir)
+    build = load_build(name, builds_dir, game=game)
     if build is not None:
         return build
     fresh = BuildConfig(name=name)
-    save_build(fresh, builds_dir)
+    save_build(fresh, builds_dir, game=game)
     return fresh
 
 
-def load_or_create_build_v2(name: str, builds_dir: Path | None = None):
+def load_or_create_build_v2(
+    name: str, builds_dir: Path | None = None, game: str | None = None
+):
     """v2 equivalent — returns a BuildV2; creates and saves an empty one
     if no file exists for that name."""
     from arpg_react.rules import BuildV2
 
-    build = load_build_v2(name, builds_dir)
+    build = load_build_v2(name, builds_dir, game=game)
     if build is not None:
         return build
     fresh = BuildV2(name=name)
-    save_build(fresh, builds_dir)
+    save_build(fresh, builds_dir, game=game)
     return fresh
 
 
 def _migrate_legacy(cfg: Config, path: Path, builds_dir: Path) -> bool:
-    """Move legacy in-config storage out to per-file builds/<name>.json.
+    """Move legacy in-config storage out to per-file builds/<name>.json
+    and run any one-shot version bumps.
 
-    Handles three layouts seen in older configs:
+    Handles three legacy layouts:
       * top-level `watchers: [...]` (very-old) → builds/generic.json
       * `builds: {name: BuildConfig}` (recent) → one file per entry
       * neither — bootstrap an empty builds/generic.json so the panel has
         something to show.
 
+    Also runs version-bump migrations:
+      * v1 → v2 (2026-06-01): chat_alarm default became True. An old
+        config still carrying the v1 default of False gets flipped; if
+        the user had explicitly enabled it (also False — indistinguishable),
+        they can re-toggle in the panel SETTINGS tab.
+
     Always returns True if the on-disk config.json should be re-written
-    (i.e. legacy fields were cleared).
+    (legacy fields cleared, or version bumped).
     """
     changed = False
 
@@ -420,6 +594,13 @@ def _migrate_legacy(cfg: Config, path: Path, builds_dir: Path) -> bool:
                     existing.watchers.append(w)
             save_build(existing, builds_dir)
         cfg.watchers = []
+        changed = True
+
+    # 3) v1 → v2: promote chat_alarm to muted-by-default
+    if cfg.version < 2:
+        if cfg.mutes.chat_alarm is False:
+            cfg.mutes.chat_alarm = True
+        cfg.version = 2
         changed = True
 
     # No auto-create of any "default" build — the panel handles the

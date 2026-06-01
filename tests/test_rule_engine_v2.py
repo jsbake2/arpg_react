@@ -152,6 +152,28 @@ def test_condition_movement_key_not_held():
     assert evaluate_condition(Condition(type=ConditionType.MOVEMENT_KEY_NOT_HELD), ctx) is True
 
 
+def test_condition_buff_active():
+    """BUFF_ACTIVE checks membership in EvalContext.buffs_seen by name.
+    Without buff_name the condition is a no-op (false) — guards against
+    an editor regression that forgot to populate the buff field."""
+    ctx = EvalContext(
+        slot_states={}, resources={}, boss_detected=False,
+        buffs_seen=frozenset({"coe:poison"}),
+    )
+    assert evaluate_condition(
+        Condition(type=ConditionType.BUFF_ACTIVE, buff_name="coe:poison"), ctx,
+    ) is True
+    assert evaluate_condition(
+        Condition(type=ConditionType.BUFF_ACTIVE, buff_name="coe:fire"), ctx,
+    ) is False
+    # Missing buff_name → always false. Don't fire on a misconfigured
+    # rule; the failure mode is "rule never matches" not "rule always
+    # matches and spams the hotkey."
+    assert evaluate_condition(
+        Condition(type=ConditionType.BUFF_ACTIVE), ctx,
+    ) is False
+
+
 # -----------------------------------------------------------------------
 # Cast types
 # -----------------------------------------------------------------------
@@ -292,6 +314,159 @@ def test_press_delay_ms_honored_for_target_and_chain_steps():
     eng.tick(NOW + timedelta(milliseconds=140))
     delays = [c[1] for c in inp.calls]
     assert delays == [42, 42, 42]
+
+
+def test_rule_hold_ms_propagates_to_input_controller():
+    """A channeled rule (hold_ms=500) must pass that hold value through
+    to InputController.fire for the rule's target press. Default tap
+    (hold_ms=0 unset) passes None so the controller uses HOLD_MS."""
+    inp = NullInputController()
+    channeled = Rule(
+        name="channel", target=HotkeyKind.L,
+        cast_type=CastType.CONDITIONAL, cooldown_seconds=0.0,
+        hold_ms=500,
+    )
+    tap = Rule(
+        name="tap", target=HotkeyKind.KEY_1,
+        cast_type=CastType.CONDITIONAL, cooldown_seconds=0.0,
+    )
+
+    # Two single-rule builds so the top-down-priority break doesn't
+    # mask the second rule.
+    for rule, expected_hold in ((channeled, 500), (tap, None)):
+        eng = RuleEngineV2(
+            build=base_build([rule]), dispatcher=make_dispatcher(),
+            input_controller=NullInputController() if rule is tap else inp,
+            sampler=_all_ready_sampler(),
+        )
+        if rule is tap:
+            inp = eng._input  # capture the per-rule NullInputController
+        eng.tick(NOW)
+        # NullInputController records (hotkey, delay_ms, hold_ms)
+        last = eng._input.calls[-1]
+        assert last[2] == expected_hold, (
+            f"rule {rule.name}: expected hold_ms={expected_hold}, got {last[2]}"
+        )
+
+
+def test_hotkey_pressed_condition_fires_combo_once_per_press():
+    """A COMBO rule gated on HOTKEY_PRESSED("f8") fires exactly once
+    when F8 is in the engine's hotkeys_pressed set, then NOT on subsequent
+    ticks even if the rule conditions would otherwise hold."""
+    inp = NullInputController()
+    rule = Rule(
+        name="boss-opener",
+        target=HotkeyKind.KEY_1,
+        cast_type=CastType.COMBO,
+        wait_mode=WaitMode.FIRE_NOW_REGARDLESS,
+        cooldown_seconds=0.0,
+        conditions=[Condition(type=ConditionType.HOTKEY_PRESSED, hotkey_token="f8")],
+        combo_steps=[
+            ComboStep(slot=HotkeyKind.KEY_2, delay_ms=50),
+            ComboStep(slot=HotkeyKind.KEY_3, delay_ms=80),
+        ],
+    )
+    eng = RuleEngineV2(
+        build=base_build([rule]), dispatcher=make_dispatcher(),
+        input_controller=inp, sampler=_all_ready_sampler(),
+    )
+
+    # No press yet — nothing fires.
+    eng.tick(NOW)
+    assert inp.calls == []
+
+    # User taps F8. Daemon would drain the listener into the engine; we
+    # simulate that here by setting hotkeys_pressed directly.
+    eng.hotkeys_pressed = frozenset({"f8"})
+    eng.tick(NOW + timedelta(milliseconds=10))
+    # The target press lands immediately; combo steps queue for later.
+    assert [c[0] for c in inp.calls] == [HotkeyKind.KEY_1]
+
+    # IMPORTANT: the press set should be cleared by the daemon between
+    # ticks (single-shot semantic). Simulate that by emptying it again
+    # — without this, the engine would re-fire the combo every tick
+    # while the user still has F8 down.
+    eng.hotkeys_pressed = frozenset()
+    eng.tick(NOW + timedelta(milliseconds=80))    # step 2 due
+    eng.tick(NOW + timedelta(milliseconds=160))   # step 3 due
+    assert [c[0] for c in inp.calls] == [
+        HotkeyKind.KEY_1, HotkeyKind.KEY_2, HotkeyKind.KEY_3,
+    ]
+
+    # Many ticks later with no press — the rule stays silent.
+    eng.tick(NOW + timedelta(seconds=2))
+    assert len(inp.calls) == 3
+
+
+def test_hotkey_pressed_condition_normalizes_case():
+    """The editor stores user input verbatim; condition eval must
+    lowercase + strip so 'F8 ' and 'f8' both match the listener's
+    normalized token."""
+    ctx = EvalContext(
+        slot_states={}, resources={}, boss_detected=False,
+        hotkeys_pressed=frozenset({"f8"}),
+    )
+    assert evaluate_condition(
+        Condition(type=ConditionType.HOTKEY_PRESSED, hotkey_token="F8"), ctx,
+    )
+    assert evaluate_condition(
+        Condition(type=ConditionType.HOTKEY_PRESSED, hotkey_token=" f8 "), ctx,
+    )
+    assert not evaluate_condition(
+        Condition(type=ConditionType.HOTKEY_PRESSED, hotkey_token="f9"), ctx,
+    )
+    # Missing token never matches — defensive against a user condition
+    # saved with no key configured yet.
+    assert not evaluate_condition(
+        Condition(type=ConditionType.HOTKEY_PRESSED, hotkey_token=None), ctx,
+    )
+
+
+def test_combo_step_hold_ms_blocks_next_step_until_release():
+    """If a combo step holds its key for 500 ms, the next step's effective
+    schedule time must include that hold window — we can't queue a new
+    press while the previous key is still being held down."""
+    inp = NullInputController()
+    rule = Rule(
+        name="combo-channel", target=HotkeyKind.KEY_1, cast_type=CastType.COMBO,
+        wait_mode=WaitMode.FIRE_NOW_REGARDLESS,
+        cooldown_seconds=10.0,
+        jitter_pct=0.0,
+        combo_steps=[
+            # First step holds for 500 ms; second step asks for only 50 ms
+            # of inter-step delay but should not fire until the 500 ms
+            # channel window has elapsed.
+            ComboStep(slot=HotkeyKind.KEY_2, delay_ms=80, hold_ms=500),
+            ComboStep(slot=HotkeyKind.KEY_3, delay_ms=50),
+        ],
+    )
+    eng = RuleEngineV2(
+        build=base_build([rule]), dispatcher=make_dispatcher(),
+        input_controller=inp, sampler=_all_ready_sampler(),
+    )
+    eng.tick(NOW)  # fires slot 1, queues 2 and 3
+
+    # Step 2 fires at +80 ms (delay only, no prior hold to wait on).
+    eng.tick(NOW + timedelta(milliseconds=100))
+    pressed_after_step2 = [c[0] for c in inp.calls]
+    assert pressed_after_step2 == [HotkeyKind.KEY_1, HotkeyKind.KEY_2]
+
+    # At +200 ms the inter-step "50 ms" alone would have been enough,
+    # but the 500 ms hold on step 2 should delay step 3 until at least
+    # +580 ms (80 + max(50, 500)).
+    eng.tick(NOW + timedelta(milliseconds=200))
+    assert [c[0] for c in inp.calls] == [HotkeyKind.KEY_1, HotkeyKind.KEY_2], (
+        "step 3 fired too early — hold_ms on the previous step was ignored"
+    )
+
+    eng.tick(NOW + timedelta(milliseconds=600))
+    assert [c[0] for c in inp.calls] == [
+        HotkeyKind.KEY_1, HotkeyKind.KEY_2, HotkeyKind.KEY_3,
+    ]
+
+    # Step 2 carried hold_ms=500 through to the InputController.
+    step2_call = inp.calls[1]
+    assert step2_call[2] == 500
 
 
 def test_rule_gated_by_movement_does_not_fire_while_moving():

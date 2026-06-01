@@ -148,6 +148,16 @@ class EvalContext:
     resources: dict[str, float]      # name → 0..1
     boss_detected: bool
     is_moving: bool = False
+    # Names of buffs the BuffWatcher matched on the most recent tick.
+    # Empty when no watcher is configured or active. BUFF_ACTIVE
+    # conditions read membership from this set.
+    buffs_seen: frozenset[str] = frozenset()
+    # Hotkey tokens pressed since the last tick (drained from the
+    # TriggerHotkeyListener). HOTKEY_PRESSED conditions check membership
+    # here. Single-tick lifetime — the set clears after this tick so a
+    # single press fires exactly one rule, not one per tick while the
+    # user holds the key down.
+    hotkeys_pressed: frozenset[str] = frozenset()
 
 
 def evaluate_condition(c: Condition, ctx: EvalContext) -> bool:
@@ -187,6 +197,14 @@ def evaluate_condition(c: Condition, ctx: EvalContext) -> bool:
         return ctx.is_moving
     if t is ConditionType.MOVEMENT_KEY_NOT_HELD:
         return not ctx.is_moving
+    if t is ConditionType.BUFF_ACTIVE:
+        if not c.buff_name:
+            return False
+        return c.buff_name in ctx.buffs_seen
+    if t is ConditionType.HOTKEY_PRESSED:
+        if not c.hotkey_token:
+            return False
+        return c.hotkey_token.strip().lower() in ctx.hotkeys_pressed
     return False
 
 
@@ -247,6 +265,16 @@ class RuleEngineV2:
         # Per-tick freshly computed
         self.slot_states: dict[HotkeyKind, SlotState] = {}
         self.resource_fills: dict[str, float] = {}
+        # Names of buffs the BuffWatcher matched on the most recent tick.
+        # Populated by the daemon between tick() calls; consumed by
+        # BUFF_ACTIVE conditions via the EvalContext constructed below.
+        self.buffs_seen: frozenset[str] = frozenset()
+        # Hotkey tokens drained from the TriggerHotkeyListener for this
+        # tick. Same daemon-writes-engine-reads pattern as buffs_seen;
+        # daemon must call `engine.hotkeys_pressed = listener.drain()`
+        # immediately before each `tick()` so the single-shot semantic
+        # holds (one press → one fire).
+        self.hotkeys_pressed: frozenset[str] = frozenset()
         # The detector's raw game-state label ("combat" / "town" / "menu" /
         # "mounted" / "unknown"). Surfaced in the 3-second diagnostic line so
         # the in-app console can confirm what the detector actually sees.
@@ -258,11 +286,14 @@ class RuleEngineV2:
         }
         self._last_pressed: dict[HotkeyKind, datetime] = {}
 
-        # Pending chain queue: (fire_at, seq, target, depth, conditions, press_delay_ms)
+        # Pending chain queue:
+        #   (fire_at, seq, target, depth, conditions, press_delay_ms, hold_ms)
         # press_delay_ms is carried from the originating rule so chain steps
         # honor the same input-latency setting as the rule's target press.
+        # hold_ms is per-step (combo steps each can have their own channel
+        # window); 0 means "use the InputController default tap".
         self._pending: list[
-            tuple[datetime, int, HotkeyKind, int, list[Condition], int]
+            tuple[datetime, int, HotkeyKind, int, list[Condition], int, int]
         ] = []
         self._pending_seq = 0
 
@@ -306,6 +337,8 @@ class RuleEngineV2:
             resources=self.resource_fills,
             boss_detected=bool(self._boss_detector() if self._boss_detector else False),
             is_moving=bool(self._movement_monitor() if self._movement_monitor else False),
+            buffs_seen=self.buffs_seen,
+            hotkeys_pressed=self.hotkeys_pressed,
         )
         for idx, rule in enumerate(self._build.rules):
             if not rule.enabled:
@@ -431,16 +464,21 @@ class RuleEngineV2:
             resources=self.resource_fills,
             boss_detected=bool(self._boss_detector() if self._boss_detector else False),
             is_moving=bool(self._movement_monitor() if self._movement_monitor else False),
+            buffs_seen=self.buffs_seen,
+            hotkeys_pressed=self.hotkeys_pressed,
         )
 
         fired = 0
         # 2) drain pending chain fires
         while self._pending and self._pending[0][0] <= now:
-            _, _, target, depth, conds, press_delay_ms = heappop(self._pending)
+            _, _, target, depth, conds, press_delay_ms, hold_ms = heappop(self._pending)
             if conds and not all_conditions_met(conds, ctx):
                 log.debug("chain step %s skipped (conditions failed)", target.value)
                 continue
-            self._press(target, now, depth=depth, source="chain", press_delay_ms=press_delay_ms)
+            self._press(
+                target, now, depth=depth, source="chain",
+                press_delay_ms=press_delay_ms, hold_ms=hold_ms,
+            )
             fired += 1
 
         # 3) evaluate rules top-down
@@ -581,17 +619,22 @@ class RuleEngineV2:
         self._press(
             rule.target, now, depth=depth, source=source,
             press_delay_ms=rule.press_delay_ms,
+            hold_ms=rule.hold_ms,
         )
 
         # Schedule chain steps. Each step's effective delay is the MAX of
-        # the user-specified inter-step delay and the previous skill's
-        # cast time — so a fast-typed combo never undercuts the cast
-        # animation of the skill that just went out.
+        # the user-specified inter-step delay, the previous skill's cast
+        # time, and the previous press's hold window — we can't queue a
+        # new press while the previous key is still being held (ydotool
+        # and pynput are both single-stream input backends).
         cumulative_ms = 0.0
         prev_slot = rule.target
+        prev_hold_ms = int(rule.hold_ms)
         for step in rule.combo_steps:
             prev_cast_ms = self._skill_timing(prev_slot).cast_ms
-            effective_delay = max(int(step.delay_ms), int(prev_cast_ms))
+            effective_delay = max(
+                int(step.delay_ms), int(prev_cast_ms), prev_hold_ms,
+            )
             cumulative_ms += jittered_one_sided(effective_delay, self._effective_jitter(rule))
             fire_at = now + timedelta(milliseconds=cumulative_ms)
             self._pending_seq += 1
@@ -604,9 +647,11 @@ class RuleEngineV2:
                     depth + 1,
                     list(step.conditions),
                     int(rule.press_delay_ms),
+                    int(step.hold_ms),
                 ),
             )
             prev_slot = step.slot
+            prev_hold_ms = int(step.hold_ms)
 
     def _press(
         self,
@@ -615,6 +660,7 @@ class RuleEngineV2:
         depth: int,
         source: str,
         press_delay_ms: int = 80,
+        hold_ms: int = 0,
     ) -> None:
         # Per-target debounce — short hard floor against accidental dupes.
         last = self._last_pressed.get(target)
@@ -646,4 +692,7 @@ class RuleEngineV2:
 
         if self._input is not None:
             press_delay = jittered_one_sided(press_delay_ms, self._build.default_jitter_pct)
-            self._input.fire(target, int(press_delay))
+            self._input.fire(
+                target, int(press_delay),
+                hold_ms=int(hold_ms) if hold_ms else None,
+            )

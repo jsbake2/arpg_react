@@ -60,7 +60,11 @@ MAX_TOKENS = 8000
 CANDIDATE_MAX_AGE = timedelta(days=21)
 # Cap candidates per source so a chatty RSS doesn't drown out reddit.
 PER_SOURCE_CAP = 15
-USER_AGENT = "linux:arpg-react-tips-refresh:1.0 (contact: jbaker)"
+# Reddit's bot detector rejects generic UAs (httpx default, "python-requests",
+# anything without `by /u/<account>`) with HTTP 403. The official guidance is
+# `<platform>:<app id>:<version> (by /u/<reddit-username>)`. Prior UA without
+# the `by /u/...` suffix was getting 403'd on every fetch.
+USER_AGENT = "linux:arpg-react-tips-refresh:1.0 (by /u/jbakerthrowaway)"
 
 # Must match the topics the panel renders as filter chips. Adding here
 # is fine (panel just renders the new chip); removing would break old tips.
@@ -80,6 +84,14 @@ SOURCES: dict[str, list[dict[str, str]]] = {
     "poe2": [
         {"kind": "rss", "label": "Path of Exile (official)", "url": "https://www.pathofexile.com/news/rss"},
         {"kind": "reddit", "label": "r/PathOfExile2", "subreddit": "PathOfExile2"},
+    ],
+    # D3 — the game is in long-tail maintenance mode, so news velocity is
+    # low. Wowhead is the most reliable feed; reddit catches any community
+    # build-of-the-season chatter that does still happen.
+    "d3": [
+        {"kind": "rss", "label": "Wowhead", "url": "https://www.wowhead.com/diablo-3/news/rss"},
+        {"kind": "reddit", "label": "r/Diablo3", "subreddit": "Diablo3"},
+        {"kind": "reddit", "label": "r/Diablo", "subreddit": "Diablo"},
     ],
 }
 
@@ -339,10 +351,19 @@ def curate(
     today: str,
     pinned_ids: list[str],
 ) -> list[dict[str, Any]]:
-    if len(candidates) < 5:
+    # Threshold lowered from 5 → 3 so D3 (which has fewer reliable sources
+    # — Wowhead's D3 feed is intermittently malformed XML and reddit can
+    # block) still gets refreshed when only a handful of items come back.
+    # The PRIOR TIPS in the prompt give the model plenty of context to
+    # work with; CANDIDATES is just the "what changed today" signal.
+    if len(candidates) < 3:
         raise RuntimeError(f"too few candidates to curate from: {len(candidates)}")
 
-    game_name = {"d4": "Diablo 4", "poe2": "Path of Exile 2"}[game]
+    game_name = {
+        "d4": "Diablo 4",
+        "poe2": "Path of Exile 2",
+        "d3": "Diablo 3",
+    }[game]
     prior_tips = _load_prior_tips(game)
     prior_json = json.dumps(prior_tips, indent=2, ensure_ascii=False) if prior_tips else "(no prior tips yet)"
     pinned_block = (
@@ -508,7 +529,7 @@ def notify(title: str, body: str, urgency: str = "normal") -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Curated-tips daily refresh")
-    parser.add_argument("--game", choices=["d4", "poe2", "both"], default="both")
+    parser.add_argument("--game", choices=["d4", "poe2", "d3", "all"], default="all")
     parser.add_argument("--dry-run", action="store_true",
                         help="Fetch + curate, but don't touch JSON files")
     parser.add_argument("--dump-candidates", action="store_true",
@@ -521,7 +542,7 @@ def main(argv: list[str] | None = None) -> int:
         args.game, args.dry_run, args.dump_candidates,
     )
 
-    games = ["d4", "poe2"] if args.game == "both" else [args.game]
+    games = ["d4", "poe2", "d3"] if args.game == "all" else [args.game]
 
     if args.dump_candidates:
         for game in games:
@@ -585,8 +606,27 @@ def main(argv: list[str] | None = None) -> int:
         logging.warning("--- refresh_tips PARTIAL ---")
         return 1
     body = "\n".join(f"{g}: {results[g][1][:120]}" for g in failures)
-    notify("ARPG tips refresh FAILED", body, "critical")
-    logging.error("--- refresh_tips TOTAL FAILURE ---")
+    # Detect failure modes that require user action (depleted API credit,
+    # bad API key) and drop the toast urgency. A `critical` notification
+    # on a daily cron with a persistent root cause becomes pure noise; the
+    # log still has the full traceback for diagnosis.
+    needs_user_action = any(
+        any(token in results[g][1].lower() for token in (
+            "credit balance is too low",
+            "invalid x-api-key",
+            "authentication_error",
+        ))
+        for g in failures
+    )
+    if needs_user_action:
+        notify("ARPG tips refresh skipped", body, "low")
+        logging.error(
+            "--- refresh_tips TOTAL FAILURE (user-action: %s) ---",
+            body.splitlines()[0][:80],
+        )
+    else:
+        notify("ARPG tips refresh FAILED", body, "normal")
+        logging.error("--- refresh_tips TOTAL FAILURE ---")
     return 2
 
 

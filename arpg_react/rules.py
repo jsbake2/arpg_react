@@ -53,6 +53,14 @@ class ConditionType(str, Enum):
     BOSS_DETECTED = "BOSS_DETECTED"
     MOVEMENT_KEY_HELD = "MOVEMENT_KEY_HELD"
     MOVEMENT_KEY_NOT_HELD = "MOVEMENT_KEY_NOT_HELD"
+    BUFF_ACTIVE = "BUFF_ACTIVE"
+    # Manual trigger — true for exactly the tick after the configured key
+    # (Condition.hotkey_token, e.g. "f8") was pressed. Lets the user wire a
+    # combo to a single keystroke ("press F8 to fire boss opener") by
+    # gating a normal COMBO rule on this condition. The daemon installs a
+    # global key listener for the union of all HOTKEY_PRESSED tokens
+    # referenced by the active build's rules.
+    HOTKEY_PRESSED = "HOTKEY_PRESSED"
 
 
 class WaitMode(str, Enum):
@@ -68,11 +76,31 @@ class Condition(BaseModel):
     type: ConditionType
     target: HotkeyKind | None = None
     value: float | str | None = None  # number for thresholds; SlotState string for state checks
+    # BUFF_ACTIVE references a buff by its canonical seen-name —
+    # `"<library_id>:<element_key>"`, e.g. `"coe:poison"`. Kept as a
+    # dedicated field instead of overloading `value` so the editor can
+    # render a buff-picker dropdown without disambiguating against the
+    # number/state semantics the other condition types use.
+    buff_name: str | None = None
+    # HOTKEY_PRESSED carries the manual trigger key as a free-form token
+    # (lowercase): "f8", "f10", "g", etc. Same dedicated-field reasoning
+    # as buff_name — the editor renders a text input instead of trying
+    # to overload `value`. The daemon's TriggerHotkeyListener accepts
+    # whatever pynput's GlobalHotKeys parser does (single chars + named
+    # function keys like "f1"-"f12").
+    hotkey_token: str | None = None
 
 
 class ComboStep(BaseModel):
     slot: HotkeyKind
     delay_ms: int = 80
+    # How long to hold the key/button down for this step. 0 = use the
+    # InputController's normal short tap (~25 ms). Set non-zero for
+    # channeled skills (e.g. a Druid werewolf LMB attack that must be
+    # held ~500 ms to fully execute). The engine adds this hold to the
+    # next step's effective inter-step delay so we don't try to fire
+    # the next press while the previous key is still being held down.
+    hold_ms: int = 0
     conditions: list[Condition] = Field(default_factory=list)
 
 
@@ -95,6 +123,11 @@ class Rule(BaseModel):
     # press this rule produces (target + every chain step), one-sided
     # jittered positive by the rule's effective jitter percent.
     press_delay_ms: int = 80
+    # How long to hold the rule's MAIN target key/button down. 0 = the
+    # InputController's normal short tap (~25 ms). Set non-zero for
+    # channeled skills that must be held to fire (e.g. a werewolf LMB
+    # combo windup). Per-combo-step holds live on ComboStep.hold_ms.
+    hold_ms: int = 0
     cooldown_seconds: float = 5.0
 
 
@@ -127,6 +160,29 @@ class PotionConfigV2(BaseModel):
     hotkey: str = "Q"
     trigger_health_below: float = 0.5
     cooldown_seconds: float = 30
+
+
+class LibraryBuffConfig(BaseModel):
+    """User-side selection of a buff from the curated `BUFF_LIBRARY`.
+
+    Builds reference entries by their library id (e.g. `"coe"`) and
+    enumerate the variant keys they want alerts on (e.g.
+    `["poison", "cold"]`). Templates, search-region, tolerance, and
+    sound all come from the library — there is nothing user-uploadable.
+
+    Rising-edge alerts fire per `(id, element)` pair: alerting on Poison
+    AND Cold means two independent rising-edge tracks (only one ever
+    fires at a time because CoE only displays one icon at once, but
+    each gets its own ding when its element rotates in).
+    """
+
+    id: str                                       # "coe", ...
+    enabled: bool = True
+    # Subset of element keys from BUFF_LIBRARY[id].elements to watch.
+    # Empty list = entry exists but no element is selected → no work,
+    # no alerts. Lets the user keep their picks around while temporarily
+    # silencing the whole entry without deleting it.
+    elements: list[str] = Field(default_factory=list)
 
 
 class SkillTiming(BaseModel):
@@ -165,6 +221,7 @@ class BuildV2(BaseModel):
     skill_timings: dict[str, SkillTiming] = Field(default_factory=dict)
     rules: list[Rule] = Field(default_factory=list)
     potion: PotionConfigV2 = Field(default_factory=PotionConfigV2)
+    buffs: list[LibraryBuffConfig] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------- migration
@@ -186,6 +243,14 @@ def migrate_legacy_build(raw: dict[str, Any]) -> BuildV2:
     correct mouse buttons.
     """
     if "watchers" not in raw or "slot_monitors" in raw:
+        # Strip pre-pivot buff entries here too — a build saved during the
+        # short window when buffs carried uploaded PNGs would otherwise
+        # fail strict validation against the new LibraryBuffConfig shape.
+        if "buffs" in raw:
+            raw = {**raw, "buffs": _filter_library_buffs(raw.get("buffs") or [])}
+        # And drop the now-gone custom_sounds field if an older shape
+        # still carries it.
+        raw = {k: v for k, v in raw.items() if k != "custom_sounds"}
         return BuildV2.model_validate(raw)
 
     legacy_watchers = raw.get("watchers") or []
@@ -233,7 +298,17 @@ def migrate_legacy_build(raw: dict[str, Any]) -> BuildV2:
         "resource_monitors": raw.get("resource_monitors", []),
         "rules": [r.model_dump() for r in rules] + raw.get("rules", []),
         "potion": raw.get("potion") or PotionConfigV2().model_dump(),
+        # Buffs migrate by shape: pre-pivot entries carried `reference_png_b64`
+        # + a freeform `name` (user-uploaded icon). Those are dropped silently
+        # — the library-driven shape has no equivalent and there is no
+        # production user data we're protecting here yet. Anything in the
+        # post-pivot shape (`id` + `elements`) passes through.
+        "buffs": _filter_library_buffs(raw.get("buffs", [])),
     }
     return BuildV2.model_validate(converted_data)
+
+
+def _filter_library_buffs(entries: list[Any]) -> list[Any]:
+    return [e for e in entries if isinstance(e, dict) and "id" in e]
 
 

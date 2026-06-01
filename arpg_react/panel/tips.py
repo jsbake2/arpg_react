@@ -30,6 +30,7 @@ log = logging.getLogger(__name__)
 SUBREDDIT = {
     "d4":   "diablo4",
     "poe2": "PathOfExile2",
+    "d3":   "Diablo3",
 }
 
 # Limit of remote posts to render. Reddit allows up to 100 per call; 15 is
@@ -41,10 +42,12 @@ REDDIT_LIMIT = 15
 # reading.
 REDDIT_MIN_SCORE = 100
 
-# User-Agent string for the Reddit request. Reddit blocks generic agents;
-# the format `platform:appname:version (by /u/<account>)` is what their
-# docs recommend.
-REDDIT_USER_AGENT = "linux:arpg-react-panel:1.0 (companion-tool)"
+# User-Agent string for the Reddit request. Reddit blocks generic agents
+# with HTTP 403. The format `<platform>:<app id>:<version> (by /u/<account>)`
+# is what their docs recommend — and they enforce the `by /u/...` suffix.
+# An earlier UA of "linux:arpg-react-panel:1.0 (companion-tool)" failed
+# the bot check and returned no posts.
+REDDIT_USER_AGENT = "linux:arpg-react-panel:1.0 (by /u/jbakerthrowaway)"
 
 
 # ----------------------------------------------------------------- model
