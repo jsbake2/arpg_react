@@ -131,8 +131,14 @@ def cmd_calibrate_skills(default_build: str | None, game: str) -> int:
     return run_calibrator(default_game=game, default_build=default_build)
 
 
-def cmd_sync_builds(url: str | None, password: str | None) -> int:
-    """Pull every build from the editor backend and write to local files."""
+def cmd_sync_builds(
+    url: str | None, password: str | None, games: list[str]
+) -> int:
+    """Pull builds for the given games from the editor backend and write
+    each game's builds into its own per-game subdir under
+    `~/.config/arpg_react/builds/<game>/`. Always passes `?game=` so the
+    server returns only that game's builds — without the param the server
+    defaults to D4 and stomps the local POE2/D3 files."""
     import getpass
     import json as _json
     import os as _os
@@ -140,7 +146,7 @@ def cmd_sync_builds(url: str | None, password: str | None) -> int:
 
     import httpx
 
-    base_url = url or _os.environ.get("D4_EDITOR_URL") or "https://d4.jsb-emr.us/"
+    base_url = url or _os.environ.get("D4_EDITOR_URL") or "https://arpg.jsb-emr.us/"
     if not base_url.endswith("/"):
         base_url += "/"
     if password is None:
@@ -151,42 +157,53 @@ def cmd_sync_builds(url: str | None, password: str | None) -> int:
         print("password required")
         return 1
 
-    builds_dir = default_builds_dir()
-    builds_dir.mkdir(parents=True, exist_ok=True)
-
     auth = ("user", password)
+    total = 0
     with httpx.Client(timeout=15) as client:
-        try:
-            resp = client.get(urljoin(base_url, "api/builds"), auth=auth)
-            resp.raise_for_status()
-        except Exception as exc:  # noqa: BLE001
-            print(f"failed to list builds: {exc}")
-            return 1
-        names = [b["name"] for b in resp.json().get("builds", [])]
-        if not names:
-            print("(no builds on server)")
-            return 0
-        for name in names:
+        for game in games:
+            print(f"\n[{game}]")
+            game_dir = default_builds_dir(game)
+            game_dir.mkdir(parents=True, exist_ok=True)
             try:
-                r = client.get(urljoin(base_url, f"api/builds/{name}"), auth=auth)
-                r.raise_for_status()
-                build = r.json()
-                (builds_dir / f"{name}.json").write_text(
-                    _json.dumps(build, indent=2)
+                resp = client.get(
+                    urljoin(base_url, "api/builds"),
+                    params={"game": game},
+                    auth=auth,
                 )
-                print(f"  ↓ {name}")
+                resp.raise_for_status()
             except Exception as exc:  # noqa: BLE001
-                print(f"  ! {name} failed: {exc}")
-    print(f"\nsynced {len(names)} build(s) to {builds_dir}")
+                print(f"  ! list failed: {exc}")
+                continue
+            names = [b["name"] for b in resp.json().get("builds", [])]
+            if not names:
+                print("  (no builds on server)")
+                continue
+            for name in names:
+                try:
+                    r = client.get(
+                        urljoin(base_url, f"api/builds/{name}"),
+                        params={"game": game},
+                        auth=auth,
+                    )
+                    r.raise_for_status()
+                    build = r.json()
+                    (game_dir / f"{name}.json").write_text(
+                        _json.dumps(build, indent=2)
+                    )
+                    print(f"  ↓ {name}")
+                    total += 1
+                except Exception as exc:  # noqa: BLE001
+                    print(f"  ! {name} failed: {exc}")
+    print(f"\nsynced {total} build(s) into {default_builds_dir()}/<game>/")
     return 0
 
 
-def cmd_builds(config_path: Path) -> int:
+def cmd_builds(config_path: Path, game: str) -> int:
     cfg = load_config(config_path)
-    builds_dir = default_builds_dir()
+    builds_dir = default_builds_dir(game)
     names = list_builds(builds_dir)
     if not names:
-        print("(no builds — run setup to create one)")
+        print(f"(no {game} builds — run setup or sync-builds to create one)")
         return 0
     for name in names:
         marker = "*" if name == cfg.current_build else " "
@@ -199,16 +216,16 @@ def cmd_builds(config_path: Path) -> int:
         print(f"  {marker} {name}  {suffix}")
     print()
     print(f"(* = active. files in {builds_dir})")
-    print("(switch with: arpg-react use <name>)")
+    print(f"(switch with: arpg-react use --game {game} <name>)")
     return 0
 
 
-def cmd_use(name: str, config_path: Path) -> int:
+def cmd_use(name: str, config_path: Path, game: str) -> int:
     cfg = load_config(config_path)
-    builds_dir = default_builds_dir()
+    builds_dir = default_builds_dir(game)
     if load_build(name, builds_dir) is None:
         save_build(BuildConfig(name=name), builds_dir)
-        print(f"created new empty build '{name}'")
+        print(f"created new empty {game} build '{name}'")
     cfg.current_build = name
     save_config(cfg, config_path)
     print(f"active build set to '{name}'")
@@ -280,7 +297,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     run_parser.add_argument(
         "--game",
-        choices=("d4", "poe2"),
+        choices=("d4", "poe2", "d3"),
         default="d4",
         help="active game — selects per-game profile cache, slot list, and detector defaults (default: d4)",
     )
@@ -289,13 +306,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     panel_parser.add_argument(
         "--theme",
-        choices=("neutral", "diablo", "azurite"),
+        choices=("neutral", "diablo", "azurite", "cinder"),
         default=None,
         help="visual theme override (default: matches the chosen game)",
     )
     panel_parser.add_argument(
         "--game",
-        choices=("d4", "poe2"),
+        choices=("d4", "poe2", "d3"),
         default=None,
         help="skip the game-select dialog and launch straight into this game's panel",
     )
@@ -304,13 +321,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     app_parser.add_argument(
         "--theme",
-        choices=("neutral", "diablo", "azurite"),
+        choices=("neutral", "diablo", "azurite", "cinder"),
         default=None,
         help="visual theme override (default: matches the chosen game)",
     )
     app_parser.add_argument(
         "--game",
-        choices=("d4", "poe2"),
+        choices=("d4", "poe2", "d3"),
         default=None,
         help="skip the game-select dialog and launch straight into this game's panel",
     )
@@ -327,9 +344,17 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="build to add the watcher to (defaults to active build)",
     )
-    sub.add_parser("builds", help="list builds")
+    builds_parser = sub.add_parser("builds", help="list builds for a game")
+    builds_parser.add_argument(
+        "--game", default="d4", choices=("d4", "poe2", "d3"),
+        help="which game's builds to list (default: d4)",
+    )
     use_parser = sub.add_parser("use", help="switch active build (creates if missing)")
     use_parser.add_argument("name", help="build name")
+    use_parser.add_argument(
+        "--game", default="d4", choices=("d4", "poe2", "d3"),
+        help="which game's builds dir to write into (default: d4)",
+    )
     cap_parser = sub.add_parser(
         "capture-build",
         help="capture a full build (slots + resources) and push to the editor backend",
@@ -346,15 +371,19 @@ def main(argv: list[str] | None = None) -> int:
         help="optional: pre-select a build in the dropdown",
     )
     calib_parser.add_argument(
-        "--game", default="poe2", choices=("d4", "poe2"),
+        "--game", default="poe2", choices=("d4", "poe2", "d3"),
         help="initial game to show (default: poe2)",
     )
     sync_parser = sub.add_parser(
         "sync-builds",
-        help="pull all builds from the web editor backend to local files",
+        help="pull builds for one or all games from the web editor backend to local files",
     )
     sync_parser.add_argument("--url", default=None)
     sync_parser.add_argument("--password", default=None)
+    sync_parser.add_argument(
+        "--game", default="all", choices=("d4", "poe2", "d3", "all"),
+        help="which game's builds to pull (default: all). 'all' pulls each game into its own subdir.",
+    )
     sub.add_parser("watch", help="diag: live colors at each configured watcher pixel")
     sub.add_parser("probe", help="diag: live color under the cursor")
     install_parser = sub.add_parser(
@@ -362,7 +391,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     install_parser.add_argument(
         "--theme",
-        choices=("neutral", "diablo", "azurite"),
+        choices=("neutral", "diablo", "azurite", "cinder"),
         default=None,
         help="bake a fixed theme into the launcher (default: theme follows the game picked in the launch dialog)",
     )
@@ -405,15 +434,16 @@ def main(argv: list[str] | None = None) -> int:
     if cmd == "setup":
         return cmd_setup(args.hotkey, config_path, args.build)
     if cmd == "builds":
-        return cmd_builds(config_path)
+        return cmd_builds(config_path, args.game)
     if cmd == "use":
-        return cmd_use(args.name, config_path)
+        return cmd_use(args.name, config_path, args.game)
     if cmd == "capture-build":
         return cmd_capture_build(args.name, args.url, args.password)
     if cmd == "calibrate-skills":
         return cmd_calibrate_skills(args.build, args.game)
     if cmd == "sync-builds":
-        return cmd_sync_builds(args.url, args.password)
+        games = ["d4", "poe2", "d3"] if args.game == "all" else [args.game]
+        return cmd_sync_builds(args.url, args.password, games)
     if cmd == "watch":
         return cmd_watch(args.config or default_config_path())
     if cmd == "probe":

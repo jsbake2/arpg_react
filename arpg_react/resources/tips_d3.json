@@ -1,0 +1,145 @@
+[
+  {
+    "id": "d3-paragon-mainstat-cap-then-cooldown",
+    "title": "Cap Core Stats Before Pushing Other Paragon Tabs",
+    "body": "In the Core Paragon tab, Movement Speed caps at +25% and most builds want that first. After that, dump every point into your main stat (Strength/Dexterity/Intelligence) — there is no soft cap on main stat from Paragon, and it scales both damage and Toughness through armor. Cooldown Reduction in the Offensive tab is your next priority for skill-rotation builds, capped at 50% from Paragon contributions.",
+    "topic": "Paragon",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/d3/getting-started/paragon-points-guide",
+    "added_date": "2026-05-23",
+    "pinned": false
+  },
+  {
+    "id": "d3-grift-pylon-priority",
+    "title": "Save Channeling and Conduit Pylons for Dense Pulls",
+    "body": "Conduit Pylons one-shot whole screens of trash but do nothing if there is nothing on-screen — wait until you have a packed pull (or the Rift Guardian) before grabbing one. Channeling Pylons (immunity + 100% damage + infinite resource) are the strongest pylon for safely chunking the Rift Guardian; skip lesser pylons if a Channeling Pylon spawns close to a boss room. Power and Shield pylons can be grabbed on contact — their value does not scale with crowd density.",
+    "topic": "Endgame",
+    "classes": [],
+    "source_label": "Icy Veins",
+    "source_url": "https://www.icy-veins.com/d3/greater-rifts",
+    "added_date": "2026-05-23",
+    "pinned": false
+  },
+  {
+    "id": "d3-legendary-gems-rank-150",
+    "title": "Push Bane of the Trapped and Bane of the Stricken to 150",
+    "body": "Bane of the Trapped (+60% damage to slowed/chilled/stunned/frozen enemies) is mandatory for virtually every build — the 60% effect activates from any crowd control, including your own Slow Time / Cyclone Strike pulses. Bane of the Stricken stacks +0.8% damage per second per target on the same enemy and is the dedicated Rift Guardian killer. Rank both to 150 first; rank 150 unlocks the secondary passives on every Legendary Gem and most are build-defining.",
+    "topic": "Gems",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/d3/getting-started/legendary-gems-guide",
+    "added_date": "2026-05-23",
+    "pinned": false
+  },
+  {
+    "id": "d3-kanai-cube-three-slots-priority",
+    "title": "Cube a Weapon, Armor, and Jewelry Power for Every Build",
+    "body": "Kanai's Cube grants three permanent extracted-legendary powers (one weapon, one armor, one jewelry) on top of the items you actually wear. Almost every endgame build assumes all three Cube slots are filled — leaving a slot empty is a 20-50% damage loss. Run Bounties for materials; the Hellfire Amulet recipe in Act IV is the fastest way to a strong jewelry power if you have not yet found Convention of Elements.",
+    "topic": "General",
+    "classes": [],
+    "source_label": "Icy Veins",
+    "source_url": "https://www.icy-veins.com/d3/kanais-cube",
+    "added_date": "2026-05-23",
+    "pinned": false
+  },
+  {
+    "id": "d3-augments-after-150-gems",
+    "title": "Augment Ancient Gear With Level-150+ Caldesann's Despair",
+    "body": "Caldesann's Despair (Cube recipe) sacrifices a level-N Legendary Gem to permanently add 5N main stat to an Ancient or Primal item — a level-100 gem adds 500 main stat, a level-150 gem adds 750. Only augment Ancient/Primal pieces (the slots are wasted on regular gear) and only with gems you have leftover after reaching 150 on Trapped + Stricken + your build's third gem. Augments survive transmogs and reforges; they are the single highest-impact source of late-season power.",
+    "topic": "Endgame",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/d3/resources/caldesanns-despair-augment-guide",
+    "added_date": "2026-05-23",
+    "pinned": false
+  },
+  {
+    "id": "d3-altar-of-rites-seasonal",
+    "title": "Plan Altar of Rites Unlocks Around Your Build's Power Curve",
+    "body": "The Altar of Rites (Seasonal-only) gives 23 permanent bonuses unlocked via sacrifice recipes — Death's Bargain (immune to elite affixes when above 75% life) and the Hedge Magic node (free Cube weapon slot) are the most impactful for Greater Rift pushing. Sacrifice your first Primal in the early-season altar node only if you cannot find a leveling Primal in the first few hours; otherwise hold for a build-relevant slot.",
+    "topic": "Seasonal",
+    "classes": [],
+    "source_label": "Wowhead",
+    "source_url": "https://www.wowhead.com/diablo-3/guide/altar-of-rites",
+    "added_date": "2026-05-23",
+    "pinned": false
+  },
+  {
+    "id": "d3-bounty-act-rotation-cache",
+    "title": "Target-Farm Bounty Caches by Act for Specific Legendaries",
+    "body": "Each Act's Horadric Cache has a different exclusive Legendary pool — Act 1 (Sage's set, Cain's set), Act 2 (Captain Crimson's set), Act 3 (Born's set), Act 4 (Aughild's set), Act 5 (Cain's set boots and chest). Run only the act that contains the gear you need rather than rotating all five for completionism. Bounty mats from any act share a stash, so target-farming an act for caches still feeds Cube recipes.",
+    "topic": "Endgame",
+    "classes": [],
+    "source_label": "Icy Veins",
+    "source_url": "https://www.icy-veins.com/d3/bounties-guide",
+    "added_date": "2026-05-23",
+    "pinned": false
+  },
+  {
+    "id": "d3-set-dungeon-stash-tab",
+    "title": "Master All Class Set Dungeons for a Free Stash Tab",
+    "body": "Completing the Mastery objective on every class-set Dungeon (24 dungeons in current patch) permanently unlocks the cosmetic Vines wings and — more importantly — an additional stash tab. The fastest route is to pick the easiest set per class (Inna's for Monk, Marauder's for DH, Trag'Oul's for Necro), run it on Normal with reduced gear so you do not over-kill timers, and follow a video for the location-specific objective tricks.",
+    "topic": "General",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/d3/resources/set-dungeon-guides",
+    "added_date": "2026-05-23",
+    "pinned": false
+  },
+  {
+    "id": "d3-leveling-haedrigs-gift",
+    "title": "Hold Off Crafting Until Haedrig's Gift Drops Your Class Set",
+    "body": "Completing Chapters 2, 3, and 4 of the Seasonal Journey grants three Haedrig's Gift caches, each containing two pieces of a pre-selected free class set — six free set pieces total. Do NOT enchant or use Caldesann's Despair on pre-set leveling gear; the set pieces will replace nearly everything. Aim to finish all four Chapters within the first weekend of a season to unlock the set bonus and start Greater Rift pushing immediately.",
+    "topic": "Seasonal",
+    "classes": [],
+    "source_label": "Icy Veins",
+    "source_url": "https://www.icy-veins.com/d3/season-journey",
+    "added_date": "2026-05-23",
+    "pinned": false
+  },
+  {
+    "id": "d3-toughness-armor-vs-resist",
+    "title": "Balance Armor and All-Resist Around a 10:1 Ratio",
+    "body": "In Diablo 3 the optimal ratio is roughly 10 Armor for every 1 All-Resist — each contributes equally to physical and elemental mitigation when balanced at this ratio. Stacking only one side leaves the other type of damage shredding through you. On gear, prefer all-resist secondary affixes on jewelry (large amounts available), and armor on chest/legs/shoulders.",
+    "topic": "General",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/d3/getting-started/toughness-guide",
+    "added_date": "2026-05-23",
+    "pinned": false
+  },
+  {
+    "id": "d3-primal-ancient-targeting",
+    "title": "Re-roll Primal Ancients at the Mystic — Do Not Sell Them",
+    "body": "Primal Ancients (red-bordered legendaries) have perfect rolls on all primary stats and only drop after clearing a Greater Rift 70 in solo. Even a wrong-class Primal is worth keeping in stash — the Mystic can re-roll a single stat per item, so a Primal with one bad affix becomes BiS after a few hundred reforge mats. Always vault Primals; the opportunity cost of selling vs. holding for an alt is huge.",
+    "topic": "Endgame",
+    "classes": [],
+    "source_label": "Icy Veins",
+    "source_url": "https://www.icy-veins.com/d3/primal-ancient-items-guide",
+    "added_date": "2026-05-23",
+    "pinned": false
+  },
+  {
+    "id": "d3-follower-emanate-relic",
+    "title": "Equip an Emanate Relic on Your Follower for the Shared Buff",
+    "body": "Followers with an equipped follower-relic (Enchantress's Focus, Templar's Relic, Scoundrel's Token) emanate certain class powers to you — most notably Unity (50% damage taken split with follower if you also wear one), Reaper's Wraps (globe-trigger resource), and Hellfire Amulet (free passive). Always keep one Unity on your character and one on the follower (with the follower's Relic equipped); the follower becomes immortal via Enchanting Favor, halving incoming damage on you.",
+    "topic": "General",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/d3/getting-started/followers-guide",
+    "added_date": "2026-05-23",
+    "pinned": false
+  },
+  {
+    "id": "d3-gr-pushing-pylon-and-density",
+    "title": "Restart Rifts With Bad Tilesets — Time Is Always the Currency",
+    "body": "Greater Rift level scaling is exponential — losing 90 seconds to bad tile layout (open desert maps, Festering Woods caves, low-density Crypts) is rarely recoverable even with perfect play. Quit and restart any Rift where the first map is open-air desert, jungle, or graveyard without large mob packs in the first minute. Closed corridors with high density (Battlefields, Halls of Agony, sewers) are what carry timer pushes.",
+    "topic": "Endgame",
+    "classes": [],
+    "source_label": "Icy Veins",
+    "source_url": "https://www.icy-veins.com/d3/greater-rifts-progression-guide",
+    "added_date": "2026-05-23",
+    "pinned": false
+  }
+]

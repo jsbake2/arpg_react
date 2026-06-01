@@ -65,6 +65,11 @@ class StatusFrame:
     muted_events: list[str] = field(default_factory=list)
     build: BuildState | None = None
     context: ContextFrame | None = None
+    # Per-alert-kind mutes mirrored from `Config.mutes` so the panel's
+    # SETTINGS tab can render the right checkbox state on connect and
+    # again after another panel flips them. Empty when the daemon hasn't
+    # initialized them yet (treat as all-False — sounds on).
+    mutes: dict[str, bool] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -128,6 +133,8 @@ def status_frame_to_dict(frame: StatusFrame) -> dict[str, Any]:
         for s in frame.slots
     ]
     payload["muted_events"] = list(frame.muted_events)
+    if frame.mutes:
+        payload["mutes"] = dict(frame.mutes)
     if frame.build is not None:
         payload["build"] = {
             "current": frame.build.current,
@@ -234,6 +241,9 @@ def parse_status(payload: ParsedMessage) -> StatusFrame:
         for s in payload.get("slots", [])
     ]
     muted_events = list(payload.get("muted_events", []))
+    mutes = {
+        k: bool(v) for k, v in (payload.get("mutes") or {}).items()
+    }
     build = None
     if "build" in payload:
         b = payload["build"]
@@ -262,6 +272,7 @@ def parse_status(payload: ParsedMessage) -> StatusFrame:
         muted_events=muted_events,
         build=build,
         context=context,
+        mutes=mutes,
     )
 
 

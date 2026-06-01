@@ -43,8 +43,16 @@ def password_from_env() -> str | None:
     return None
 
 
-def sync_once(url: str, builds_dir: Path, password: str | None = None) -> int:
-    """Pull every build from the editor backend and write to local files.
+def sync_once(
+    url: str, builds_dir: Path, game: str, password: str | None = None
+) -> int:
+    """Pull every build for a single game from the editor backend and write
+    to local files. The `?game=<g>` query param is mandatory — without it
+    the backend defaults to D4 and silently stomps the local POE2/D3
+    builds. (That was the bug fixed when per-game scoping landed.)
+
+    `builds_dir` should already be the per-game subdir
+    (`~/.config/arpg_react/builds/<game>/`), not the flat root.
 
     Returns the count of builds *changed* (new or content-different);
     files that already match the server are skipped without rewriting
@@ -65,11 +73,19 @@ def sync_once(url: str, builds_dir: Path, password: str | None = None) -> int:
 
     try:
         with httpx.Client(timeout=10) as client:
-            r = client.get(urljoin(url, "api/builds"), auth=auth)
+            r = client.get(
+                urljoin(url, "api/builds"),
+                params={"game": game},
+                auth=auth,
+            )
             r.raise_for_status()
             names = [b["name"] for b in r.json().get("builds", [])]
             for name in names:
-                resp = client.get(urljoin(url, f"api/builds/{name}"), auth=auth)
+                resp = client.get(
+                    urljoin(url, f"api/builds/{name}"),
+                    params={"game": game},
+                    auth=auth,
+                )
                 resp.raise_for_status()
                 payload = resp.json()
                 target = builds_dir / f"{name}.json"
@@ -78,7 +94,7 @@ def sync_once(url: str, builds_dir: Path, password: str | None = None) -> int:
                 if old_text == new_text:
                     continue
                 target.write_text(new_text)
-                log.info("editor_sync: pulled %s", name)
+                log.info("editor_sync: pulled %s (%s)", name, game)
                 changed += 1
     except Exception as exc:  # noqa: BLE001
         log.warning("editor_sync: %s", exc)

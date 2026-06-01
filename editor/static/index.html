@@ -31,6 +31,7 @@
     <button class="tab" data-tab="skills">SKILLS</button>
     <button class="tab" data-tab="rules">RULES</button>
     <button class="tab" data-tab="potion">POTION</button>
+    <button class="tab" data-tab="buffs">BUFFS</button>
     <button class="tab" data-tab="tips">TIPS</button>
     <button class="tab" data-tab="profile">PROFILE</button>
   </nav>
@@ -89,6 +90,17 @@
       <label>
         <input type="checkbox" id="p_enabled"> Enabled
       </label>
+    </section>
+
+    <section class="tabpanel" data-tab="buffs">
+      <h2>Buffs <span class="muted">(curated library; pick which variants to alert on)</span></h2>
+      <p class="hint">Pick a buff from the library and toggle which variants you want a ding for. Rising-edge only — one alert per appearance, no spam while the buff is up. Selected variants also expose themselves to the rule engine as <code>BUFF_ACTIVE</code> conditions (e.g. <code>coe:poison</code>) so rules can gate auto-cast on a specific element being up.</p>
+
+      <div class="buffs-toolbar">
+        <select id="addBuffSelect"></select>
+        <button class="btn primary" id="addBuffBtn">+ ADD</button>
+      </div>
+      <div id="buffsList"></div>
     </section>
 
     <section class="tabpanel" data-tab="tips">

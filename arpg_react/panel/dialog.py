@@ -1,8 +1,8 @@
 """Game-select dialog shown before the main panel opens.
 
-Two large clickable tiles (D4 / POE2) — the choice determines which
-panel layout + theme runs. Returning None means the user closed the
-dialog without picking, in which case the caller should exit cleanly.
+Three large clickable tiles (D4 / POE2 / D3) — the choice determines
+which panel layout + theme runs. Returning None means the user closed
+the dialog without picking, in which case the caller should exit cleanly.
 """
 
 from __future__ import annotations
@@ -69,6 +69,20 @@ QPushButton#tilePoe2:hover {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
         stop:0 #1c7593, stop:0.55 #114a64, stop:1 #093547);
 }
+
+/* D3 tile — cinder (deep burnt orange). Hotter and more saturated than
+   the D4 gold so the two diablos read distinct at a glance. */
+QPushButton#tileD3 {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 #2a1407, stop:1 #0d0805);
+    border: 1px solid #4a2410;
+    color: #e25a14;
+}
+QPushButton#tileD3:hover {
+    border: 1px solid #e25a14;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 #3a1d0a, stop:1 #160c06);
+}
 """
 
 
@@ -80,7 +94,7 @@ class GameSelectDialog(QtWidgets.QDialog):
         self.setObjectName("gameSelect")
         self.setWindowTitle("ARPG React")
         self.setModal(True)
-        self.setFixedSize(540, 360)
+        self.setFixedSize(780, 380)
         self.setStyleSheet(_DIALOG_CSS)
         self.selected_game: str | None = None
 
@@ -103,9 +117,16 @@ class GameSelectDialog(QtWidgets.QDialog):
         self.btn_poe2.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         self.btn_poe2.clicked.connect(lambda: self._pick("poe2"))
 
+        self.btn_d3 = QtWidgets.QPushButton("DIABLO III")
+        self.btn_d3.setObjectName("tileD3")
+        self.btn_d3.setProperty("gameTile", True)
+        self.btn_d3.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        self.btn_d3.clicked.connect(lambda: self._pick("d3"))
+
         tiles = QtWidgets.QHBoxLayout()
         tiles.setContentsMargins(28, 0, 28, 28)
         tiles.setSpacing(20)
+        tiles.addWidget(self.btn_d3)
         tiles.addWidget(self.btn_d4)
         tiles.addWidget(self.btn_poe2)
 

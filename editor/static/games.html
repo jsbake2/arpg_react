@@ -20,6 +20,25 @@
   </header>
 
   <main class="games-grid">
+    <a class="game-tile game-d3" href="/editor?game=d3">
+      <svg viewBox="0 0 64 64" class="game-icon" aria-hidden="true">
+        <defs>
+          <linearGradient id="d3grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#f08a2a"/>
+            <stop offset="100%" stop-color="#e25a14"/>
+          </linearGradient>
+        </defs>
+        <!-- D3-style ringed soulstone — concentric rings + central ember -->
+        <circle cx="32" cy="32" r="28" fill="none" stroke="url(#d3grad)" stroke-width="2.5"/>
+        <circle cx="32" cy="32" r="20" fill="none" stroke="url(#d3grad)" stroke-width="1.5" opacity="0.7"/>
+        <circle cx="32" cy="32" r="12" fill="none" stroke="url(#d3grad)" stroke-width="1.2" opacity="0.5"/>
+        <circle cx="32" cy="32" r="5" fill="#e25a14"/>
+        <circle cx="32" cy="32" r="2" fill="#fff2dc"/>
+      </svg>
+      <div class="game-label">DIABLO III</div>
+      <div class="game-sub">Sanctuary · 1-4 · L · R · Q potion</div>
+    </a>
+
     <a class="game-tile game-d4" href="/editor?game=d4">
       <svg viewBox="0 0 64 64" class="game-icon" aria-hidden="true">
         <!-- Diablo-style pentagram -->

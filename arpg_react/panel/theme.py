@@ -149,7 +149,46 @@ AZURITE = Theme(
 )
 
 
-THEMES = {NEUTRAL.name: NEUTRAL, DIABLO.name: DIABLO, AZURITE.name: AZURITE}
+# D3 cinder palette — deep burnt orange. Diablo III's signature in-game
+# brand color is a richer, more saturated orange than D4's gold; this
+# palette pushes the accent into ember/lava territory while keeping the
+# same dark-bg shape as DIABLO so the panel layout reads consistently
+# across the three games.
+CINDER = Theme(
+    name="cinder",
+    bg="#0d0805",
+    panel_bg="#160c06",
+    card_bg="#22130a",
+    card_bg_hover="#2e1a0d",
+    border="#4a2410",
+    text="#f1d9a6",
+    text_dim="#9a6a3a",
+    text_label="#c98a4a",
+    accent="#e25a14",            # deep burnt orange
+    state_active="#e25a14",
+    state_upcoming="#5a2410",
+    state_ending="#f08a2a",
+    state_unknown="#3a1e10",
+    severity_warning="#f08a2a",
+    severity_start="#e25a14",
+    severity_end="#5a2410",
+    healthy="#e25a14",
+    unhealthy="#7a1f1f",
+    toggle_active="#a04018",
+    toggle_active_hover="#c25a22",
+    toggle_paused="#5a1a14",
+    toggle_paused_hover="#7a2418",
+    font_family="'Cinzel', 'EB Garamond', 'Caudex', 'Inter', serif",
+    font_family_display="'Cinzel Decorative', 'Cinzel', 'EB Garamond', serif",
+)
+
+
+THEMES = {
+    NEUTRAL.name: NEUTRAL,
+    DIABLO.name: DIABLO,
+    AZURITE.name: AZURITE,
+    CINDER.name: CINDER,
+}
 
 
 def state_color(theme: Theme, state: EventState) -> str:
@@ -389,6 +428,51 @@ QTabWidget#mainTabs QTabBar::tab:selected {{
 }}
 
 QWidget#tabBody {{ background: {theme.panel_bg}; }}
+
+/* SETTINGS tab ---------------------------------------------------- */
+QLabel#settingsIntro {{
+    color: {theme.text_dim};
+    font-size: 11px;
+    line-height: 1.4;
+}}
+QFrame#settingsCard {{
+    background: {theme.card_bg};
+    border: 1px solid {theme.border};
+    border-radius: 8px;
+}}
+QLabel#settingsCardTitle {{
+    color: {theme.accent};
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+}}
+QLabel#settingsCardSubtitle {{
+    color: {theme.text_dim};
+    font-size: 10px;
+    line-height: 1.4;
+}}
+QCheckBox#settingsToggle {{
+    color: {theme.text_dim};
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    spacing: 8px;
+    padding: 4px 8px;
+}}
+QCheckBox#settingsToggle::indicator {{
+    width: 16px;
+    height: 16px;
+    border: 1px solid {theme.border};
+    border-radius: 3px;
+    background: {theme.panel_bg};
+}}
+QCheckBox#settingsToggle::indicator:hover {{
+    border-color: {theme.accent};
+}}
+QCheckBox#settingsToggle::indicator:checked {{
+    border-color: {theme.accent};
+    background: {theme.accent};
+}}
 
 QLabel#buildLabel {{
     color: {theme.text_dim};

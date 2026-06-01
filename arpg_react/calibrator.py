@@ -28,6 +28,7 @@ log = logging.getLogger(__name__)
 SLOTS_BY_GAME = {
     "d4":   ["1", "2", "3", "4", "L", "R"],
     "poe2": ["LMB", "MMB", "RMB", "Q", "E", "R", "T", "F"],
+    "d3":   ["1", "2", "3", "4", "L", "R", "Q"],
 }
 GAMES = list(SLOTS_BY_GAME)
 
@@ -37,6 +38,7 @@ GAMES = list(SLOTS_BY_GAME)
 DEFAULT_OCR_BBOX_BY_GAME: dict[str, tuple[int, int, int, int] | None] = {
     "d4":   None,
     "poe2": (914, 311, 1641, 1036),
+    "d3":   None,
 }
 
 # Reference resolution + UI scale the bboxes above were captured at —

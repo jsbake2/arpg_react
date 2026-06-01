@@ -75,7 +75,7 @@ SEED_USERS = (
     ("matt",   "arpg123"),
 )
 
-VALID_GAMES = {"d4", "poe2"}
+VALID_GAMES = {"d4", "poe2", "d3"}
 SESSION_TTL_SECONDS = 14 * 24 * 3600  # 14 days
 
 
@@ -385,7 +385,12 @@ def get_build(name: str, request: Request):
     return json.loads(row["data"])
 
 
-VALID_HOTKEYS = {"1", "2", "3", "4", "L", "R"}
+VALID_HOTKEYS = {
+    # D4 + D3 keyboard/mouse slots
+    "1", "2", "3", "4", "L", "R",
+    # POE2 mouse + keyboard slots
+    "LMB", "MMB", "RMB", "Q", "E", "T", "F",
+}
 VALID_SLOT_STATES = {"READY", "ACTIVE_READY", "IN_USE", "COOLDOWN", "DISABLED"}
 
 
@@ -493,10 +498,12 @@ async def rename_build(old_name: str, request: Request):
 def _default_profile(game: str) -> dict:
     if game == "poe2":
         slots = ["LMB", "MMB", "RMB", "Q", "E", "R", "T", "F"]
+    elif game == "d3":
+        slots = ["1", "2", "3", "4", "L", "R", "Q"]
     else:
         slots = ["1", "2", "3", "4", "L", "R"]
-    # D4 'L'/'R' are mouse-button slots — they must map to 'lmb'/'rmb' so
-    # the InputController routes them through pynput.mouse, not as the
+    # D4/D3 'L'/'R' are mouse-button slots — they must map to 'lmb'/'rmb'
+    # so the InputController routes them through pynput.mouse, not as the
     # literal letter L/R on the keyboard.
     _mouse_slot_overrides = {"L": "lmb", "R": "rmb"}
     keymap = {s: _mouse_slot_overrides.get(s, s.lower()) for s in slots}

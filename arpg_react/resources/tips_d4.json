@@ -1,5 +1,16 @@
 [
   {
+    "id": "d4-s13-horadric-cube-legendary-rune-craft",
+    "title": "Craft Any Specific Legendary Rune via the Horadric Cube",
+    "body": "The Horadric Cube contains a crafting recipe for every Legendary Rune in the game. The cost is five Legendary Runes of any type. If you have surplus copies of one Legendary Rune and are missing a specific one your build needs, the Cube conversion is the most direct route rather than relying on RNG drops.",
+    "topic": "General",
+    "classes": [],
+    "source_label": "Maxroll",
+    "source_url": "https://maxroll.gg/d4/resources/horadric-cube",
+    "added_date": "2026-05-21",
+    "pinned": true
+  },
+  {
     "id": "d4-s13-talisman-unlock-early",
     "title": "Unlock the Talisman System Before Anything Else",
     "body": "The Talisman is a dedicated inventory panel (1 Seal + up to 6 Charm slots) added with Lord of Hatred — it is entirely separate from your armour, weapons, and jewellery. Complete the 'Last of the Horadrim' main questline during the campaign to unlock it; skipping this locks you out of a full build layer. Charms can replicate Unique item effects and activate Set bonuses, freeing gear slots you previously had to fill with specific Uniques.",
@@ -77,17 +88,6 @@
     "pinned": false
   },
   {
-    "id": "d4-s13-horadric-cube-legendary-rune-craft",
-    "title": "Craft Any Specific Legendary Rune via the Horadric Cube",
-    "body": "The Horadric Cube contains a crafting recipe for every Legendary Rune in the game. The cost is five Legendary Runes of any type. If you have surplus copies of one Legendary Rune and are missing a specific one your build needs, the Cube conversion is the most direct route rather than relying on RNG drops.",
-    "topic": "General",
-    "classes": [],
-    "source_label": "Maxroll",
-    "source_url": "https://maxroll.gg/d4/resources/horadric-cube",
-    "added_date": "2026-05-21",
-    "pinned": true
-  },
-  {
     "id": "d4-s13-undercity-mythic-tribute",
     "title": "Stack the Undercity Tribute of Armaments for Burst Mythic Drops",
     "body": "The Undercity in Skovos is the highest burst source for Mythic Unique items in Season 13. Craft a Mythic Tribute of Armaments (5× Legendary Greater Tributes of Armaments via the Horadric Cube), unlock the left-side Undercity War Plans skill tree for bonus tribute chests, and bring a fast-clearing build that can beat the timer. Portal Prankster bonuses further multiply total payout, making multi-Mythic single-run drops possible.",
@@ -95,17 +95,6 @@
     "classes": [],
     "source_label": "GAMES.GG",
     "source_url": "https://games.gg/diablo-iv/guides/how-to-farm-mythic-uniques-in-diablo-4-season-13/",
-    "added_date": "2026-05-21",
-    "pinned": false
-  },
-  {
-    "id": "d4-s13-masterworking-goblin-sigil",
-    "title": "Use Goblin NMD Sigils to Maximise Obducite for Masterworking",
-    "body": "Obducite (the core Masterworking material for Quality ranks 1–3) drops from Nightmare Dungeons, Undercity with a Tribute of Refinement, and Infernal Hordes. The single best source is a Nightmare Dungeon sigil with the Treasure Breach (Goblin) affix — ideally run a rotation with three other players, each using their own Goblin sigil to chain four consecutive goblin dungeons. Mid-rank (4–8) upgrades require Ingolith and high-rank (9–12) require Neathiron, both from the same activity pool but at higher difficulty.",
-    "topic": "Endgame",
-    "classes": [],
-    "source_label": "Maxroll",
-    "source_url": "https://maxroll.gg/d4/resources/masterworking-guide",
     "added_date": "2026-05-21",
     "pinned": false
   },
@@ -156,24 +145,13 @@
     "pinned": false
   },
   {
-    "id": "d4-s13-gems-horadric-upgrade-gem-strength",
-    "title": "Upgrade Gems in the Horadric Cube, Then Roll Gem Strength on Weapons",
-    "body": "The Horadric Cube can upgrade gems beyond the Jeweler's maximum tier. A Flawless Horadric Diamond delivers a significant all-damage boost in a weapon socket — one of the strongest single-slot endgame upgrades available. After socketing the upgraded gem, roll for the Gem Strength affix on the weapon via Tempering to multiply the gem's value further. The loop is: farm gems → upgrade in Cube → socket into weapon → temper Gem Strength → push harder content.",
-    "topic": "Gems",
-    "classes": [],
-    "source_label": "AOEAH",
-    "source_url": "https://www.aoeah.com/news/4576--diablo-4-secret-horadric-cube-recipes--crafting-tips-loh--s13",
-    "added_date": "2026-05-21",
-    "pinned": false
-  },
-  {
     "id": "d4-s13-horadric-jewel-cube-only",
     "title": "Never Dismantle Horadric Jewels at the Jeweler — Use Cube Only",
     "body": "Dismantling Horadric Jewels at the Jeweler returns a fraction of their actual value (100,000 fragments instead of the expected 25,000,000). Always break down Horadric Jewels exclusively through Horadric Cube recipes to preserve full crafting value. This is a critical mistake that wastes hours of farming, so verify your vendor target before pressing confirm.",
     "topic": "Currency",
     "classes": [],
     "source_label": "r/diablo4",
-    "source_url": "https://reddit.com/r/diablo4/comments/1te5ls2/psa_never_ever_dismantle_your_flawless_horadric/",
+    "source_url": "https://reddit.com/r/diablo4/comments/1te5ls2/psa-never-ever-dismantle-your-flawless-horadric/",
     "added_date": "2026-05-22",
     "pinned": false
   },
@@ -189,14 +167,14 @@
     "pinned": false
   },
   {
-    "id": "d4-s13-gold-find-legendary-seal",
-    "title": "Boost Gold Drops with a Legendary Seal's Gold Find Affix",
-    "body": "Equip a Legendary Seal (unique slot item) that rolls increased gold drop rate to amplify income during endgame farming sessions. While a single seal's gold find is modest, it stacks with other gold-boosting mechanics and requires no Paragon Board or gear compromise. Swap the seal in before Helltide or Undercity runs to maximize currency accumulation without sacrificing survivability or damage.",
+    "id": "d4-s13-legendary-seal-gold-find",
+    "title": "Equip a Legendary Seal for Surprise Gold-Find Bonus",
+    "body": "In Season 13, Legendary Seals can roll increased gold drop rate as a secondary affix. This discovery bypassed the loss of direct gold-find gear slots post-expansion and opens a new farming optimization path: pair your high-damage Seal with a gold-find roll to passively amplify currency income during endgame runs. Even modest gold-find values compound significantly over extended farm sessions.",
     "topic": "Currency",
     "classes": [],
     "source_label": "Wowhead",
     "source_url": "https://www.wowhead.com/news=381647/gold-find-returns-to-diablo-4-lord-of-hatred-using-a-trick-with-legendary-seals",
-    "added_date": "2026-05-22",
+    "added_date": "2026-05-30",
     "pinned": false
   }
 ]

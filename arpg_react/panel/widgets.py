@@ -383,15 +383,21 @@ class EventCard(QtWidgets.QFrame):
 
 class FooterBar(QtWidgets.QWidget):
     """Bottom strip: daemon connection + helltides health + pause toggles +
-    context badge + override cycle."""
+    context badge + override cycle.
+
+    `show_events=False` hides the helltides-source label and the TIMERS
+    pause toggle — for games (D3) that have no scheduled event timers
+    at all. WATCHER + context badge stay regardless.
+    """
 
     pause_watchers_clicked = QtCore.pyqtSignal()
     pause_events_clicked = QtCore.pyqtSignal()
     override_cycle_clicked = QtCore.pyqtSignal()
 
-    def __init__(self, theme: Theme, parent=None):
+    def __init__(self, theme: Theme, parent=None, show_events: bool = True):
         super().__init__(parent)
         self.theme = theme
+        self._show_events = show_events
 
         self.connection = QtWidgets.QLabel("connecting to daemon…")
         self.connection.setObjectName("footerHealth")
@@ -399,12 +405,14 @@ class FooterBar(QtWidgets.QWidget):
 
         self.source = QtWidgets.QLabel("")
         self.source.setObjectName("footerText")
+        self.source.setVisible(show_events)
 
         self.pause_events_button = QtWidgets.QPushButton("TIMERS")
         self.pause_events_button.setObjectName("pauseButton")
         self.pause_events_button.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         self.pause_events_button.setProperty("paused", "true")
         self.pause_events_button.clicked.connect(self.pause_events_clicked.emit)
+        self.pause_events_button.setVisible(show_events)
 
         self.pause_watchers_button = QtWidgets.QPushButton("WATCHER")
         self.pause_watchers_button.setObjectName("pauseButton")
@@ -439,6 +447,11 @@ class FooterBar(QtWidgets.QWidget):
         self.connection.style().polish(self.connection)
 
     def set_source(self, health: SourceHealth, now: datetime) -> None:
+        # No-op when the game has no event timers (D3). The daemon still
+        # sends source frames since the timers loop runs regardless, but
+        # the footer label is hidden so there's nothing useful to update.
+        if not self._show_events:
+            return
         if health.primary_healthy is None:
             self.source.setText("clock-only")
             return
@@ -449,10 +462,16 @@ class FooterBar(QtWidgets.QWidget):
             self.source.setText("helltides offline")
 
     def set_monitoring(self, enabled: bool, watcher_count: int) -> None:
-        if watcher_count <= 0:
-            self.pause_watchers_button.setVisible(False)
-            return
+        # Always visible AND always clickable. `watcher_count` doesn't
+        # reflect "does the build have rules" — it's the count of slot
+        # states the detector is tracking, which is 0 for D3 (no slot
+        # detector yet) even when the build has plenty of rules. Greying
+        # it out broke the legitimate D3 case where the user wants to
+        # toggle auto-cast on a rules-only build. The engine harmlessly
+        # no-ops if there's truly nothing to fire.
         self.pause_watchers_button.setVisible(True)
+        self.pause_watchers_button.setEnabled(True)
+        self.pause_watchers_button.setToolTip("Start/stop auto-cast for this build.")
         self.pause_watchers_button.setProperty("paused", "false" if enabled else "true")
         self.pause_watchers_button.style().unpolish(self.pause_watchers_button)
         self.pause_watchers_button.style().polish(self.pause_watchers_button)

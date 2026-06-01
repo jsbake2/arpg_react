@@ -12,7 +12,8 @@ from PyQt6 import QtCore, QtGui, QtNetwork, QtWidgets
 from arpg_react.ipc.messages import parse_alert, parse_debug, parse_status
 from arpg_react.panel.client import IPCClient
 from arpg_react.panel.dialog import prompt_for_game
-from arpg_react.panel.theme import AZURITE, DIABLO, NEUTRAL, Theme, style_qss
+from arpg_react.panel.theme import AZURITE, CINDER, DIABLO, NEUTRAL, Theme, style_qss
+from arpg_react.panel.settings import SettingsTab
 from arpg_react.panel.tips import TipsTab
 from arpg_react.panel.widgets import (
     BuildBanner,
@@ -33,6 +34,7 @@ WINDOW_W, WINDOW_H = 620, 760
 GAME_THEME: dict[str, Theme] = {
     "d4":   DIABLO,
     "poe2": AZURITE,
+    "d3":   CINDER,
 }
 
 # Editor backend health endpoint for the POE2 LINKS tab.
@@ -240,7 +242,11 @@ class PanelWindow(QtWidgets.QMainWindow):
         title = QtWidgets.QLabel("ARPG REACT")
         title.setObjectName("headerTitle")
         subtitle = QtWidgets.QLabel(
-            "Sanctuary companion" if game == "d4" else "Wraeclast companion"
+            {
+                "d4":   "Sanctuary companion",
+                "poe2": "Wraeclast companion",
+                "d3":   "Nephalem companion",
+            }.get(game, "")
         )
         subtitle.setObjectName("headerSub")
         header = QtWidgets.QVBoxLayout()
@@ -262,12 +268,17 @@ class PanelWindow(QtWidgets.QMainWindow):
         self.tabs.setObjectName("mainTabs")
 
         resources_root = package_root / "resources"
+        # SETTINGS tab — audio mutes, same UX across every game. Created
+        # up here so it can be referenced after the game-specific tab
+        # ordering decides where to insert it (always last).
+        self.settings_tab = SettingsTab(theme)
         if game == "d4":
             timers_widget = self._make_timers_tab(theme)
             self.tabs.addTab(timers_widget, "TIMERS")
             self.tabs.addTab(self.build_tab, "BUILD")
             self.tips_tab = TipsTab(theme, "d4", resources_root)
             self.tabs.addTab(self.tips_tab, "TIPS")
+            self.tabs.addTab(self.settings_tab, "SETTINGS")
             self.tabs.setCurrentIndex(0)
         elif game == "poe2":
             self.links_tab = LinksTab(theme)
@@ -275,13 +286,23 @@ class PanelWindow(QtWidgets.QMainWindow):
             self.tabs.addTab(self.build_tab, "BUILD")
             self.tips_tab = TipsTab(theme, "poe2", resources_root)
             self.tabs.addTab(self.tips_tab, "TIPS")
+            self.tabs.addTab(self.settings_tab, "SETTINGS")
             self.tabs.setCurrentIndex(1)  # default to BUILD — the working tab
+        elif game == "d3":
+            # D3 has no scheduled-event timers (no Helltide/Legion equivalent)
+            # and no LINKS surface — just BUILD + TIPS + SETTINGS.
+            self.tabs.addTab(self.build_tab, "BUILD")
+            self.tips_tab = TipsTab(theme, "d3", resources_root)
+            self.tabs.addTab(self.tips_tab, "TIPS")
+            self.tabs.addTab(self.settings_tab, "SETTINGS")
+            self.tabs.setCurrentIndex(0)
         else:
-            # Defensive — should never hit, dialog only emits d4/poe2.
+            # Defensive — should never hit, dialog only emits d4/poe2/d3.
             raise ValueError(f"unsupported game: {game}")
 
-        # Footer
-        self.footer = FooterBar(theme)
+        # Footer — D3 has no scheduled event timers, so hide the TIMERS
+        # toggle + helltides-source health label entirely for that game.
+        self.footer = FooterBar(theme, show_events=(game != "d3"))
 
         # Compose
         center = QtWidgets.QWidget()
@@ -303,6 +324,7 @@ class PanelWindow(QtWidgets.QMainWindow):
         self.footer.override_cycle_clicked.connect(self._on_override_cycle)
         self.build_picker.build_selected.connect(self._on_build_selected)
         self.build_picker.sync_clicked.connect(self._on_sync_clicked)
+        self.settings_tab.mute_changed.connect(self._on_mute_changed)
         for card in self.cards.values():
             card.mute_clicked.connect(self._on_event_mute_clicked)
 
@@ -388,6 +410,11 @@ class PanelWindow(QtWidgets.QMainWindow):
         muted = set(frame.muted_events)
         for kind, card in self.cards.items():
             card.set_muted(kind.value in muted)
+        # SETTINGS tab mirrors the daemon's current mutes. The tab
+        # blocks its own signal during the apply so re-publishing
+        # the same state doesn't bounce a redundant set_mutes back.
+        if frame.mutes:
+            self.settings_tab.apply_mutes(frame.mutes)
 
     def _handle_alert(self, msg: dict) -> None:
         try:
@@ -401,6 +428,18 @@ class PanelWindow(QtWidgets.QMainWindow):
             frame.severity,
             frame.label_extra or "",
         )
+
+    def _on_mute_changed(self, key: str, value: bool) -> None:
+        """A SETTINGS-tab checkbox flipped. Forward the user's intent +
+        the other two checkbox states so the daemon doesn't need to
+        track a partial-update merge for missing keys."""
+        # Read straight from the widgets so we send a coherent snapshot
+        # even if multiple toggles get clicked before a round-trip lands.
+        payload = {"type": "command", "command": "set_mutes"}
+        for k, box in self.settings_tab._boxes.items():
+            payload[k] = bool(box.isChecked())
+        payload[key] = bool(value)
+        self.client.send(payload)
 
     def _on_pause_watchers_clicked(self) -> None:
         self.client.send({"type": "command", "command": "toggle_watchers"})
@@ -460,6 +499,8 @@ def _resolve_theme(theme_name: str | None, game: str) -> Theme:
         return DIABLO
     if theme_name == "azurite":
         return AZURITE
+    if theme_name == "cinder":
+        return CINDER
     return GAME_THEME.get(game, DIABLO)
 
 
