@@ -734,9 +734,22 @@ function renderPotionTab(b) {
 // it to BUFF_LIBRARY below in the same commit.
 
 const BUFF_LIBRARY = {
+  // POE2 Druid Savage Fury — charge-percent buff. Single fixed "default"
+  // element, no per-variant checkboxes. The user picks a threshold (0-100,
+  // default 100) at which the audible alarm fires; "maybe 90+" is the
+  // typical setup so the player has wind-up time before 100%.
+  savage_fury: {
+    label: "Savage Fury (Druid)",
+    game: "poe2",
+    kind: "charge_percent",
+    elements: [
+      { key: "default", label: "Savage Fury" },
+    ],
+  },
   coe: {
     label: "Convention of Elements",
     game: "d3",
+    kind: "elemental",
     elements: [
       { key: "fire",      label: "Fire" },
       { key: "lightning", label: "Lightning" },
@@ -757,12 +770,30 @@ function seenName(id, elementKey) { return `${id}:${elementKey}`; }
 // Every (id, element) pair the active build currently watches. Drives
 // the BUFF_ACTIVE condition dropdown — rules can only gate on a buff
 // the build is actually selecting.
+//
+// Charge-percent buffs (Savage Fury) have no user-toggled element list
+// — they're implicitly opted-in by the buff entry being enabled. Each
+// such buff still surfaces ONE seen-name (per the library's single
+// element) so the rule engine can gate on it. For Savage Fury, the
+// seen-name fires only when the icon's percent has crossed the per-
+// build threshold (watcher-side semantic, see buff_watcher.py).
 function selectedSeenNames(b) {
   const out = [];
   for (const cfg of (b.buffs || [])) {
-    if (!BUFF_LIBRARY[cfg.id]) continue;
-    for (const k of (cfg.elements || [])) {
-      out.push({ value: seenName(cfg.id, k), label: `${BUFF_LIBRARY[cfg.id].label}: ${k}` });
+    const entry = BUFF_LIBRARY[cfg.id];
+    if (!entry) continue;
+    if (entry.kind === "charge_percent") {
+      if (cfg.enabled === false) continue;
+      for (const elem of entry.elements) {
+        out.push({
+          value: seenName(cfg.id, elem.key),
+          label: `${entry.label} ≥ ${cfg.threshold_pct ?? 100}%`,
+        });
+      }
+    } else {
+      for (const k of (cfg.elements || [])) {
+        out.push({ value: seenName(cfg.id, k), label: `${entry.label}: ${k}` });
+      }
     }
   }
   return out;
@@ -823,10 +854,34 @@ function renderBuff(b, cfg, idx) {
   const wrap = el("div", { class: "buff-card" });
   if (!Array.isArray(cfg.elements)) cfg.elements = [];
 
-  const elementChecks = entry.elements.map(elem => {
-    const checked = cfg.elements.includes(elem.key) ? "checked" : "";
-    return `<label class="check"><input type="checkbox" data-elem="${escAttr(elem.key)}" ${checked}> ${elem.label}</label>`;
-  }).join("");
+  // Charge-percent buffs (Savage Fury) render a threshold slider instead
+  // of per-element checkboxes. The element list is fixed (single entry)
+  // and gets implicitly opted-in by the watcher when the buff entry
+  // itself is enabled — see `_collect_templates` in buff_watcher.py.
+  const isChargePercent = entry.kind === "charge_percent";
+  if (isChargePercent && (typeof cfg.threshold_pct !== "number")) {
+    cfg.threshold_pct = 100;
+  }
+
+  let bodyInner;
+  if (isChargePercent) {
+    const t = cfg.threshold_pct;
+    bodyInner = `
+      <div class="buff-elements">
+        <label class="threshold-row">
+          <span>Alarm at</span>
+          <input type="range" data-f="threshold_pct" min="50" max="100" step="1" value="${t}">
+          <span class="threshold-val">${t}%</span>
+          <small style="color:var(--text-dim)">Fires once when the icon's percent reaches this value; re-arms after it drops below.</small>
+        </label>
+      </div>`;
+  } else {
+    const elementChecks = entry.elements.map(elem => {
+      const checked = cfg.elements.includes(elem.key) ? "checked" : "";
+      return `<label class="check"><input type="checkbox" data-elem="${escAttr(elem.key)}" ${checked}> ${elem.label}</label>`;
+    }).join("");
+    bodyInner = `<div class="buff-elements">${elementChecks}</div>`;
+  }
 
   wrap.innerHTML = `
     <div class="buff-meta">
@@ -834,7 +889,7 @@ function renderBuff(b, cfg, idx) {
       <div class="buff-controls">
         <label class="check"><input type="checkbox" data-f="enabled" ${cfg.enabled !== false ? "checked" : ""}> enabled</label>
       </div>
-      <div class="buff-elements">${elementChecks}</div>
+      ${bodyInner}
     </div>
     <button class="delete-btn" data-act="del">DEL</button>
   `;
@@ -842,21 +897,33 @@ function renderBuff(b, cfg, idx) {
   wrap.querySelector('[data-f=enabled]').addEventListener("change", e => {
     cfg.enabled = e.target.checked; setDirty();
   });
-  wrap.querySelectorAll('[data-elem]').forEach(inp => {
-    inp.addEventListener("change", e => {
-      const k = e.target.dataset.elem;
-      const has = cfg.elements.includes(k);
-      if (e.target.checked && !has) cfg.elements.push(k);
-      else if (!e.target.checked && has) {
-        cfg.elements = cfg.elements.filter(x => x !== k);
-      }
-      // Keep order stable (match library order) so the JSON diff is
-      // tidy across reorderings.
-      const order = entry.elements.map(x => x.key);
-      cfg.elements.sort((a, b2) => order.indexOf(a) - order.indexOf(b2));
+
+  if (isChargePercent) {
+    const slider = wrap.querySelector('[data-f=threshold_pct]');
+    const valLabel = wrap.querySelector('.threshold-val');
+    slider.addEventListener("input", e => {
+      cfg.threshold_pct = Number(e.target.value);
+      if (valLabel) valLabel.textContent = cfg.threshold_pct + "%";
       setDirty();
     });
-  });
+  } else {
+    wrap.querySelectorAll('[data-elem]').forEach(inp => {
+      inp.addEventListener("change", e => {
+        const k = e.target.dataset.elem;
+        const has = cfg.elements.includes(k);
+        if (e.target.checked && !has) cfg.elements.push(k);
+        else if (!e.target.checked && has) {
+          cfg.elements = cfg.elements.filter(x => x !== k);
+        }
+        // Keep order stable (match library order) so the JSON diff is
+        // tidy across reorderings.
+        const order = entry.elements.map(x => x.key);
+        cfg.elements.sort((a, b2) => order.indexOf(a) - order.indexOf(b2));
+        setDirty();
+      });
+    });
+  }
+
   wrap.querySelector('[data-act=del]').onclick = () => {
     if (!confirm(`Delete buff "${entry.label}"?`)) return;
     b.buffs.splice(idx, 1); setDirty(); renderBuffsTab(b);

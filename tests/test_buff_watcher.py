@@ -326,3 +326,208 @@ def test_coe_element_matches_only_itself(source_element: str):
         f"`.venv/bin/python tools/calibrate_buff_match.py` for the "
         f"full cross-score grid."
     )
+
+
+# ----- charge_percent (Savage Fury) ------------------------------------
+#
+# OCR is monkey-patched to a deterministic stub so the tests don't depend
+# on Tesseract being installed and aren't timing-flaky. The icon-locating
+# template scan is exercised against real synthetic pixels.
+
+from arpg_react.buffs.library import KIND_CHARGE_PERCENT
+from datetime import timedelta as _td
+
+import arpg_react.watchers.buff_watcher as bw_mod
+
+
+def _charge_library(tmp_path: Path, text_bbox=(0, 49, 62, 90)) -> dict:
+    """A single-element charge_percent library backed by a synthetic
+    template PNG on disk. text_bbox is in region coords relative to the
+    template's top-left."""
+    template_path = _write_png(tmp_path / "sf.png", (180, 40, 40))
+    return {
+        "savage_fury": LibraryBuff(
+            id="savage_fury",
+            label="Savage Fury",
+            game="poe2",
+            kind=KIND_CHARGE_PERCENT,
+            match_tolerance=0.15,
+            elements=(
+                LibraryBuffElement(
+                    key="default", label="Savage Fury",
+                    template_paths=(template_path,),
+                    text_bbox=text_bbox,
+                ),
+            ),
+        ),
+    }
+
+
+def _stub_ocr(monkeypatch, sequence):
+    """Replace _read_charge_percent with one that pops values from a list.
+    Use this to script percent readings tick-by-tick."""
+    values = list(sequence)
+    def fake(_crop):
+        return values.pop(0) if values else None
+    monkeypatch.setattr(bw_mod, "_read_charge_percent", fake)
+
+
+def test_charge_percent_fires_alert_on_threshold_cross(monkeypatch, tmp_path):
+    """The watcher should call on_buff_seen once when the OCR'd percent
+    crosses the configured threshold from below — and not on subsequent
+    ticks until the percent drops back below."""
+    library = _charge_library(tmp_path)
+    fires: list[str] = []
+    watcher = BuffWatcher(
+        search_bbox=(0, 0, 1000, 60),
+        on_buff_seen=fires.append,
+        library=library,
+    )
+    watcher.set_buffs([LibraryBuffConfig(
+        id="savage_fury", enabled=True, threshold_pct=100,
+    )])
+
+    haystack = _strip_with(_solid((50, 50), (180, 40, 40)), (400, 5))
+
+    _stub_ocr(monkeypatch, [50, 80, 99, 100, 100])
+
+    # Tick at staggered times so the 1-second OCR throttle doesn't block
+    # successive readings. Each tick advances 2 s.
+    for i, expected_fires in enumerate([[], [], [], ["savage_fury:default"], ["savage_fury:default"]]):
+        watcher.evaluate(haystack, NOW + _td(seconds=i * 2))
+        assert fires == expected_fires, (
+            f"after tick {i}: fires={fires!r} expected={expected_fires!r}"
+        )
+
+
+def test_charge_percent_re_arms_after_drop_below_threshold(monkeypatch, tmp_path):
+    """When the percent drops below threshold (buff was consumed) the
+    watcher should be ready to fire again on the next rising cross."""
+    library = _charge_library(tmp_path)
+    fires: list[str] = []
+    watcher = BuffWatcher(
+        search_bbox=(0, 0, 1000, 60),
+        on_buff_seen=fires.append,
+        library=library,
+    )
+    watcher.set_buffs([LibraryBuffConfig(
+        id="savage_fury", enabled=True, threshold_pct=100,
+    )])
+    haystack = _strip_with(_solid((50, 50), (180, 40, 40)), (400, 5))
+
+    # Sequence: 100 (fire) → 50 (drop, re-arm) → 100 (fire again)
+    _stub_ocr(monkeypatch, [100, 50, 100])
+    watcher.evaluate(haystack, NOW)
+    watcher.evaluate(haystack, NOW + _td(seconds=2))
+    watcher.evaluate(haystack, NOW + _td(seconds=4))
+    assert fires == ["savage_fury:default", "savage_fury:default"]
+
+
+def test_charge_percent_respects_custom_threshold(monkeypatch, tmp_path):
+    """User-configured threshold_pct (e.g. 90 for "prepare for 100%")
+    should be the trigger value, not the library default."""
+    library = _charge_library(tmp_path)
+    fires: list[str] = []
+    watcher = BuffWatcher(
+        search_bbox=(0, 0, 1000, 60),
+        on_buff_seen=fires.append,
+        library=library,
+    )
+    watcher.set_buffs([LibraryBuffConfig(
+        id="savage_fury", enabled=True, threshold_pct=90,
+    )])
+    haystack = _strip_with(_solid((50, 50), (180, 40, 40)), (400, 5))
+
+    # 85 (under 90 — no fire), 90 (cross — fire), 95 (still up — no fire)
+    _stub_ocr(monkeypatch, [85, 90, 95])
+    watcher.evaluate(haystack, NOW)
+    assert fires == []
+    watcher.evaluate(haystack, NOW + _td(seconds=2))
+    assert fires == ["savage_fury:default"]
+    watcher.evaluate(haystack, NOW + _td(seconds=4))
+    assert fires == ["savage_fury:default"]   # still above, no re-fire
+
+
+def test_charge_percent_seen_means_above_threshold(monkeypatch, tmp_path):
+    """For charge_percent buffs, BuffWatcherReading.seen should include
+    the buff only when its percent is at or above the threshold —
+    that's what BUFF_ACTIVE rule conditions read."""
+    library = _charge_library(tmp_path)
+    watcher = BuffWatcher(
+        search_bbox=(0, 0, 1000, 60), library=library,
+    )
+    watcher.set_buffs([LibraryBuffConfig(
+        id="savage_fury", enabled=True, threshold_pct=100,
+    )])
+    haystack = _strip_with(_solid((50, 50), (180, 40, 40)), (400, 5))
+
+    _stub_ocr(monkeypatch, [50, 100])
+    r1 = watcher.evaluate(haystack, NOW)
+    assert r1.seen == set()
+    assert r1.charge_percents == {"savage_fury:default": 50}
+
+    r2 = watcher.evaluate(haystack, NOW + _td(seconds=2))
+    assert r2.seen == {"savage_fury:default"}
+    assert r2.charge_percents == {"savage_fury:default": 100}
+
+
+def test_charge_percent_ocr_is_throttled(monkeypatch, tmp_path):
+    """OCR shouldn't run on every tick — Tesseract is the expensive part.
+    Successive evaluate() calls within the throttle window must reuse the
+    last percent reading rather than re-OCRing."""
+    library = _charge_library(tmp_path)
+    watcher = BuffWatcher(
+        search_bbox=(0, 0, 1000, 60), library=library,
+    )
+    watcher.set_buffs([LibraryBuffConfig(
+        id="savage_fury", enabled=True, threshold_pct=100,
+    )])
+    haystack = _strip_with(_solid((50, 50), (180, 40, 40)), (400, 5))
+
+    ocr_calls = {"n": 0}
+    def counting_ocr(_crop):
+        ocr_calls["n"] += 1
+        return 75
+    monkeypatch.setattr(bw_mod, "_read_charge_percent", counting_ocr)
+
+    # Four ticks within 0.5 s — only the first should OCR; the rest reuse.
+    for i in range(4):
+        watcher.evaluate(haystack, NOW + _td(milliseconds=i * 100))
+    assert ocr_calls["n"] == 1, f"expected 1 OCR call, got {ocr_calls['n']}"
+
+    # A tick more than 1 s past the first should trigger another OCR.
+    watcher.evaluate(haystack, NOW + _td(seconds=2))
+    assert ocr_calls["n"] == 2
+
+
+def test_charge_percent_no_match_does_not_falling_edge(monkeypatch, tmp_path):
+    """Icon momentarily off-screen (template scan fails) must NOT clear
+    the above-threshold state — otherwise the user would get a duplicate
+    alert as soon as the icon reappears."""
+    library = _charge_library(tmp_path)
+    fires: list[str] = []
+    watcher = BuffWatcher(
+        search_bbox=(0, 0, 1000, 60),
+        on_buff_seen=fires.append,
+        library=library,
+    )
+    watcher.set_buffs([LibraryBuffConfig(
+        id="savage_fury", enabled=True, threshold_pct=100,
+    )])
+
+    haystack_present = _strip_with(_solid((50, 50), (180, 40, 40)), (400, 5))
+    haystack_absent = _strip_with(None, (0, 0))
+
+    _stub_ocr(monkeypatch, [100, 100])
+
+    # Tick 1: icon present at 100 — fires.
+    watcher.evaluate(haystack_present, NOW)
+    assert fires == ["savage_fury:default"]
+
+    # Tick 2: icon gone — no fire, no re-arm.
+    watcher.evaluate(haystack_absent, NOW + _td(seconds=2))
+    assert fires == ["savage_fury:default"]
+
+    # Tick 3: icon back at 100 — should NOT re-fire (state preserved).
+    watcher.evaluate(haystack_present, NOW + _td(seconds=4))
+    assert fires == ["savage_fury:default"]

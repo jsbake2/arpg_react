@@ -183,6 +183,12 @@ class LibraryBuffConfig(BaseModel):
     # no alerts. Lets the user keep their picks around while temporarily
     # silencing the whole entry without deleting it.
     elements: list[str] = Field(default_factory=list)
+    # Threshold (0-100) at which a `charge_percent`-kind buff fires its
+    # alert. None for elemental buffs (where it has no meaning) and as
+    # a sentinel "use the library default" for charge_percent — the
+    # watcher coerces None → 100 at evaluate time. Editor renders this
+    # as a slider when the chosen library entry is charge_percent.
+    threshold_pct: int | None = None
 
 
 class SkillTiming(BaseModel):

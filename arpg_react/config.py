@@ -139,7 +139,12 @@ DEFAULT_MODIFIERS_BY_GAME: dict[str, dict[str, list[str]]] = {
 # until those games light up the watcher (v1.1+).
 DEFAULT_BUFF_ROW_BBOX_BY_GAME: dict[str, tuple[int, int, int, int] | None] = {
     "d4":   None,
-    "poe2": None,
+    # POE2 buff strip runs along the top of the screen, captured 2026-06-01
+    # against `arpg_stuff/poe2/savage-fury-and-buff-area.png` — the user
+    # drew the green outline directly on a combat shot and we picked out
+    # its bounding box. Wider than D3 (~2252 px) because POE2 stacks all
+    # active buffs in a single horizontal row across the top.
+    "poe2": (8, 4, 2260, 112),
     "d3":   (875, 1200, 1735, 1290),
 }
 

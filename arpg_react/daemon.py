@@ -288,13 +288,16 @@ def run(
         "chat_open": False,
     }
 
-    # Buff watcher — D3-only in v1. Reuses the d3 state detector's screen
-    # grab so we don't pay for a second ImageGrab per tick. Search bbox
-    # comes from per-game config; if the game has no bbox configured the
-    # watcher stays None and the BUFFS tab is effectively a no-op for
-    # that game (build files still round-trip cleanly).
+    # Buff watcher — D3 (CoE) and POE2 (Savage Fury). For D3 we reuse the
+    # state-detector's full-screen grab so no second ImageGrab fires per
+    # tick. POE2 has no full-screen state detector, so the watcher grabs
+    # its own buff-strip region (small, cheap — ~25 ms on Wayland via grim
+    # at the strip's ~2250×108 size). Search bbox comes from per-game
+    # config; if the game has no bbox configured the watcher stays None
+    # and the BUFFS tab is effectively a no-op for that game.
     buff_watcher = None
-    if game == "d3":
+    buff_strip_grab_bbox: tuple[int, int, int, int] | None = None
+    if game in ("d3", "poe2"):
         from arpg_react.config import DEFAULT_BUFF_ROW_BBOX_BY_GAME
         from arpg_react.watchers.buff_watcher import BuffWatcher
         bbox = DEFAULT_BUFF_ROW_BBOX_BY_GAME.get(game)
@@ -312,9 +315,12 @@ def run(
             )
             buff_watcher.set_buffs(active_build.buffs)
             log.info(
-                "buff watcher active (%d buffs, bbox=%s)",
-                len(active_build.buffs), scaled_bbox,
+                "buff watcher active (%s, %d buffs, bbox=%s)",
+                game, len(active_build.buffs), scaled_bbox,
             )
+            if game == "poe2":
+                # POE2 needs its own grab — see comment block above.
+                buff_strip_grab_bbox = scaled_bbox
 
     commands: queue.Queue[dict[str, Any]] = queue.Queue()
 
@@ -621,6 +627,19 @@ def run(
                 ctx = GameContext.DISABLED
             elif reading is None:
                 ctx = GameContext.UNKNOWN
+            elif game == "poe2":
+                # POE2 uses the D4-style Detector but its slot/orb sample
+                # coords are calibrated for D4 — POE2's HP orb sits at
+                # different pixels, so the detector reads hp_fill=0 and
+                # classifies every POE2 scene as `game_state = MENU`,
+                # which would route every rule's press through the
+                # INPUT_SUPPRESSED branch and silently swallow it. The
+                # only detector output we can trust for POE2 is
+                # `chat_open` (different pixels, checked above) — so for
+                # everything else POE2 defaults to IN_COMBAT and we lean
+                # on the F7 manual pause + the chat-open gate. When a
+                # POE2-specific detector lands, drop this branch.
+                ctx = GameContext.IN_COMBAT
             elif reading.game_state in (
                 DetectorGameState.MENU,
                 DetectorGameState.MOUNTED,
@@ -648,18 +667,49 @@ def run(
             # rising-edge state via set_buffs(...) — a one-line trick
             # that resets _last_seen so when the user re-enables, a
             # buff that's still up will ring as a fresh rising edge.
-            if (
+            # Buff watcher tick. Two paths:
+            #   D3  — reuse d3_state_detector.last_grab (no extra ImageGrab)
+            #   POE2 — small dedicated ImageGrab of just the buff strip
+            #          (~2250×108 ≈ 240k px; ~25 ms via grim on Wayland)
+            #
+            # Gating is intentionally minimal: engine.enabled (F7 toggle)
+            # and not chat-open. We DON'T gate on game state — Savage Fury
+            # can fill while the player is at a waypoint, browsing the
+            # atlas, or in town, and the whole point of the alarm is to
+            # hear it regardless of what the camera is doing. The earlier
+            # restriction to GameContext.IN_COMBAT silently disabled
+            # alerts whenever the detector classified the scene as TOWN
+            # or MENU.
+            buff_img = None
+            poe2_should_tick = (
+                buff_watcher is not None
+                and buff_strip_grab_bbox is not None
+                and state["engine"].enabled
+                and not state["chat_open"]
+            )
+            d3_should_tick = (
                 buff_watcher is not None
                 and state["engine"].enabled
                 and d3_state_detector is not None
                 and d3_state_detector.last_grab is not None
                 and d3_reading is not None
                 and not d3_reading.is_paused
-            ):
+            )
+            if d3_should_tick:
+                buff_img = d3_state_detector.last_grab
+            elif poe2_should_tick:
                 try:
-                    buff_reading = buff_watcher.evaluate(
-                        d3_state_detector.last_grab, now,
-                    )
+                    from PIL import ImageGrab
+                    buff_img = ImageGrab.grab(
+                        bbox=buff_strip_grab_bbox,
+                    ).convert("RGB")
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("poe2 buff strip grab failed: %s", exc)
+                    buff_img = None
+
+            if buff_img is not None:
+                try:
+                    buff_reading = buff_watcher.evaluate(buff_img, now)
                     engine_obj.buffs_seen = frozenset(buff_reading.seen)
                 except Exception as exc:  # noqa: BLE001
                     log.warning("buff watcher tick failed: %s", exc)
