@@ -183,11 +183,51 @@ CINDER = Theme(
 )
 
 
+# POE1 vaal palette — toxic corruption green. POE1 and POE2 need to be
+# tellable apart at a glance in the game picker and in the panel chrome,
+# so POE1 deliberately does NOT reuse AZURITE's cyan; it takes the Vaal /
+# corrupted-area green that's just as strongly "Path of Exile" but reads
+# instantly distinct from POE2's ice-blue. Same dark-bg shape as the
+# other three palettes so panel layout stays consistent across games.
+#
+# `healthy` intentionally equals `accent` here (as it does in CINDER) —
+# green is already the accent, so a separate teal "healthy" would look
+# like an unrelated third color in the LINKS tab health dot.
+VAAL = Theme(
+    name="vaal",
+    bg="#060c07",
+    panel_bg="#0d1a10",
+    card_bg="#12281a",
+    card_bg_hover="#1a3826",
+    border="#1f6b3a",
+    text="#d6f2df",
+    text_dim="#6a9c7d",
+    text_label="#8ec9a4",
+    accent="#57e08a",            # toxic vaal green
+    state_active="#57e08a",
+    state_upcoming="#1d5233",
+    state_ending="#d97706",      # amber stays universal for "soon"
+    state_unknown="#1a3826",
+    severity_warning="#d97706",
+    severity_start="#57e08a",
+    severity_end="#1d5233",
+    healthy="#57e08a",
+    unhealthy="#b34257",
+    toggle_active="#1f8a4a",
+    toggle_active_hover="#2bb063",
+    toggle_paused="#7a3a3a",
+    toggle_paused_hover="#a04a4a",
+    font_family="'Cinzel', 'EB Garamond', 'Caudex', 'Inter', serif",
+    font_family_display="'Cinzel Decorative', 'Cinzel', 'EB Garamond', serif",
+)
+
+
 THEMES = {
     NEUTRAL.name: NEUTRAL,
     DIABLO.name: DIABLO,
     AZURITE.name: AZURITE,
     CINDER.name: CINDER,
+    VAAL.name: VAAL,
 }
 
 
@@ -631,7 +671,7 @@ QPushButton#calibrateBtn:hover {{
     background: {theme.card_bg_hover};
 }}
 
-/* LINKS tab — POE2 only. Cards stack vertically; each card has a label,
+/* LINKS tab — POE2 + POE1. Cards stack vertically; each card has a label,
    description, and a single OPEN button on the right. */
 QLabel#linksTitle {{
     color: {theme.accent};

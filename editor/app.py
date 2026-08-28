@@ -75,7 +75,7 @@ SEED_USERS = (
     ("matt",   "arpg123"),
 )
 
-VALID_GAMES = {"d4", "poe2", "d3"}
+VALID_GAMES = {"d4", "poe2", "poe1", "d3"}
 SESSION_TTL_SECONDS = 14 * 24 * 3600  # 14 days
 
 
@@ -390,6 +390,10 @@ VALID_HOTKEYS = {
     "1", "2", "3", "4", "L", "R",
     # POE2 mouse + keyboard slots
     "LMB", "MMB", "RMB", "Q", "E", "T", "F",
+    # POE1 adds W to the skill bar and a 5th flask slot. The rest of
+    # POE1's slots (LMB/MMB/RMB/Q/E/R/T and flasks 1-4) are already
+    # covered by the two lines above.
+    "W", "5",
 }
 VALID_SLOT_STATES = {"READY", "ACTIVE_READY", "IN_USE", "COOLDOWN", "DISABLED"}
 
@@ -498,6 +502,10 @@ async def rename_build(old_name: str, request: Request):
 def _default_profile(game: str) -> dict:
     if game == "poe2":
         slots = ["LMB", "MMB", "RMB", "Q", "E", "R", "T", "F"]
+    elif game == "poe1":
+        # Q/W/E/R/T skill bar + the five utility flasks on the number row.
+        slots = ["LMB", "MMB", "RMB", "Q", "W", "E", "R", "T",
+                 "1", "2", "3", "4", "5"]
     elif game == "d3":
         slots = ["1", "2", "3", "4", "L", "R", "Q"]
     else:
@@ -505,7 +513,18 @@ def _default_profile(game: str) -> dict:
     # D4/D3 'L'/'R' are mouse-button slots — they must map to 'lmb'/'rmb'
     # so the InputController routes them through pynput.mouse, not as the
     # literal letter L/R on the keyboard.
-    _mouse_slot_overrides = {"L": "lmb", "R": "rmb"}
+    #
+    # This override is game-scoped on purpose. 'R' is an overloaded slot
+    # label: in D4/D3 it means right-mouse, but in POE2/POE1 it's the
+    # keyboard letter R on the skill bar. Applying the override to every
+    # game (as this did previously) seeded POE2 profiles with R -> 'rmb',
+    # so a POE2 rule targeting the R slot right-clicked instead of
+    # pressing R — and silently overrode the correct per-game default in
+    # config.DEFAULT_KEYMAP_BY_GAME, since the daemon merges the cached
+    # profile keymap on top of it. 'L' has no such collision (POE uses
+    # LMB), but scoping both keeps the rule one line and obvious.
+    _MOUSE_SLOT_GAMES = {"d4", "d3"}
+    _mouse_slot_overrides = {"L": "lmb", "R": "rmb"} if game in _MOUSE_SLOT_GAMES else {}
     keymap = {s: _mouse_slot_overrides.get(s, s.lower()) for s in slots}
     return {
         "display": {"screen_w": 2560, "screen_h": 1440, "ui_scale": 1.0},

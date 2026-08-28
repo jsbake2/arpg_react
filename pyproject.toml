@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "arpg-react"
 version = "0.1.0dev0"
-description = "ARPG React: Diablo 4 + Path of Exile 2 companion (event timers, rule engine, auto-cast)"
+description = "ARPG React: Diablo 4 / Diablo 3 / Path of Exile / Path of Exile 2 companion (event timers, rule engine, auto-cast)"
 readme = "PROJECT.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

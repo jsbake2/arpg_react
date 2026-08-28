@@ -13,7 +13,7 @@ from arpg_react.timers import EventKind
 
 
 class HotkeyKind(str, Enum):
-    """Slot identifier used by rules + watchers. Spans both D4 and POE2.
+    """Slot identifier used by rules + watchers. Spans D4, POE2, D3, POE1.
 
     The slot's semantic meaning (which physical key/button to press) is
     no longer carried by the enum identity — that's data on the per-user
@@ -43,6 +43,18 @@ class HotkeyKind(str, Enum):
     F = "F"
     # NB: "R" is shared by both games (D4 right-mouse, POE2 keyboard 'R').
     # The slot label is the same; only the default-keymap mapping differs.
+
+    # POE1 additions. POE1's skill bar is Q/W/E/R/T (plus the three mouse
+    # buttons) and its five utility flasks live on the number row 1-5.
+    # KEY_1..KEY_4 are reused from the D4 block; only "W" and "5" are new.
+    #
+    # W is *also* a movement key in the WASD games, but POE1 is played
+    # click-to-move here, so the collision is inert — movement-gated rules
+    # are filtered out of POE1 the same way they are for D3. If POE1 ever
+    # gets WASD support in this app, `MOVEMENT_KEYS` and this slot would
+    # need to be reconciled per-profile.
+    W = "W"
+    KEY_5 = "5"
 
 
 # D4 hotbar order — used by panel widgets that render a D4-shaped bar
@@ -81,6 +93,24 @@ HOTKEY_ORDER_BY_GAME: dict[str, tuple[HotkeyKind, ...]] = {
         HotkeyKind.R,
         HotkeyKind.Q,
     ),
+    # POE1 — three mouse buttons + the Q/W/E/R/T skill bar, then the five
+    # utility flasks on the number row. Flasks are ordered last so the UI
+    # renders skills and flasks as two visually distinct runs.
+    "poe1": (
+        HotkeyKind.LMB,
+        HotkeyKind.MMB,
+        HotkeyKind.RMB,
+        HotkeyKind.Q,
+        HotkeyKind.W,
+        HotkeyKind.E,
+        HotkeyKind.R,
+        HotkeyKind.T,
+        HotkeyKind.KEY_1,
+        HotkeyKind.KEY_2,
+        HotkeyKind.KEY_3,
+        HotkeyKind.KEY_4,
+        HotkeyKind.KEY_5,
+    ),
 }
 
 
@@ -105,6 +135,12 @@ DEFAULT_KEYMAP_BY_GAME: dict[str, dict[str, str]] = {
         "L": "lmb", "R": "rmb",
         "Q": "q",
     },
+    "poe1": {
+        "LMB": "lmb", "MMB": "mmb", "RMB": "rmb",
+        "Q": "q", "W": "w", "E": "e", "R": "r", "T": "t",
+        # Utility flasks — identity mapping onto the number row.
+        "1": "1", "2": "2", "3": "3", "4": "4", "5": "5",
+    },
 }
 
 
@@ -115,10 +151,19 @@ DEFAULT_KEYMAP_BY_GAME: dict[str, dict[str, str]] = {
 # bot wants the bound skill to fire, not the movement — POE2 doesn't
 # have a universal shift-attack so we leave it bare unless the user
 # explicitly opts in via per-build config later.
+#
+# POE1 *does* have a universal shift-to-attack-in-place, and it's the
+# same trap as D3: an unmodified LMB on a click-to-move character walks
+# them into the pack instead of casting. Left empty rather than forced,
+# though — unlike D3, POE1 players routinely leave LMB on Move Only or
+# on a movement skill (Shield Charge / Dash), where holding shift would
+# actively break the bind. The user opts in per-build via the profile
+# keymap if their LMB is an attack.
 DEFAULT_MODIFIERS_BY_GAME: dict[str, dict[str, list[str]]] = {
     "d4":   {},
     "poe2": {},
     "d3":   {"L": ["shift"]},
+    "poe1": {},
 }
 
 
@@ -146,6 +191,13 @@ DEFAULT_BUFF_ROW_BBOX_BY_GAME: dict[str, tuple[int, int, int, int] | None] = {
     # active buffs in a single horizontal row across the top.
     "poe2": (8, 4, 2260, 112),
     "d3":   (875, 1200, 1735, 1290),
+    # POE1 — TODO(calibrate): needs a real screenshot. POE1's buff strip
+    # sits top-left under the life/mana globes area and is laid out very
+    # differently from POE2's full-width top row, so POE2's bbox is NOT a
+    # usable starting guess. Left None, which keeps the buff watcher off
+    # for POE1 (see the `game in (...)` gate in daemon.py) until the user
+    # drops a combat shot in `arpg_stuff/poe1/` with the region outlined.
+    "poe1": None,
 }
 
 
@@ -419,7 +471,7 @@ def default_builds_dir(game: str | None = None) -> Path:
     """Per-game builds directory.
 
     When `game` is provided, return `~/.config/arpg_react/builds/<game>/`
-    so D4, POE2, and D3 builds never share a filename namespace. When
+    so D4, POE2, POE1, and D3 builds never share a filename namespace. When
     `game` is None, return the legacy flat path for back-compat with the
     handful of CLI commands (`builds`, `use`, legacy `setup`) that have
     not yet been threaded with a game.

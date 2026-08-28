@@ -357,8 +357,22 @@ class D3StateDetector:
         screen_w: int = REF_W,
         screen_h: int = REF_H,
         interval: timedelta = timedelta(milliseconds=500),
+        locator=None,
     ) -> None:
         self.config = scale_for(screen_w, screen_h)
+        # Window tracking. Without it every coordinate below is an index
+        # into the whole-desktop grab, so a game on any monitor other
+        # than the leftmost reads the wrong monitor entirely. Pass
+        # NullWindowLocator() to opt out (tests, or a session where the
+        # game genuinely is at the origin and the lookup is wasted work).
+        if locator is None:
+            from arpg_react.watchers.game_window import GameWindowLocator
+            locator = GameWindowLocator("d3")
+        self._locator = locator
+        # Configs keyed by the window size they were scaled for. The
+        # window size is what matters once we crop to it — the desktop
+        # may be 5120 wide while the game is a 2560 window on half of it.
+        self._config_for_size: dict[tuple[int, int], D3StateConfig] = {}
         self._interval = interval
         self._last_at: datetime | None = None
         self._last: D3StateReading = D3StateReading(False, "unknown")
@@ -385,11 +399,33 @@ class D3StateDetector:
         except Exception as exc:  # noqa: BLE001
             log.warning("d3 state grab failed: %s", exc)
             return self._last
-        # Cache the grab for sibling watchers (BuffWatcher) that share
-        # this same screen frame instead of taking their own.
-        self.last_grab = img
 
+        # Crop the whole-desktop grab down to the game window so the
+        # reference coordinates below stay valid wherever the game is.
+        # `is_origin` windows already line up, so skip the copy. When the
+        # window can't be located we fall through with the full grab —
+        # the pre-window-tracking behavior, correct on single-monitor
+        # setups and no worse than before anywhere else.
         cfg = self.config
+        rect = self._locator.locate(now)
+        if rect is not None and not rect.is_origin:
+            img = img.crop(rect.bbox)
+        if rect is not None:
+            # Scale to the WINDOW, not the desktop: a 2560-wide game on a
+            # 5120-wide desktop needs the reference config, not one
+            # stretched to twice the width.
+            size = (rect.w, rect.h)
+            cached = self._config_for_size.get(size)
+            if cached is None:
+                cached = scale_for(rect.w, rect.h)
+                self._config_for_size[size] = cached
+            cfg = cached
+
+        # Cache the grab for sibling watchers (BuffWatcher) that share
+        # this same screen frame instead of taking their own. Must be the
+        # CROPPED image — the buff strip bbox is in the same
+        # game-relative coordinate space as everything else here.
+        self.last_grab = img
 
         # ESC menu first — its cream-text signature is unambiguous and
         # the cheapest of the three checks (smallest bbox).

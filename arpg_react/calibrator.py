@@ -9,7 +9,8 @@ owns (per-game), and lets the user pick one. Picking a build pulls its
 skill_timings into editable fields. CAPTURE buttons fire OCR. SYNC re-
 pulls the build from the database. SAVE pushes the page values back.
 
-Slot set is game-aware: D4 = 1,2,3,4,L,R · POE2 = LMB,MMB,RMB,Q,E,R,T,F.
+Slot set is game-aware: D4 = 1,2,3,4,L,R · POE2 = LMB,MMB,RMB,Q,E,R,T,F ·
+D3 = 1,2,3,4,L,R,Q · POE1 = LMB,MMB,RMB,Q,W,E,R,T + flasks 1-5.
 """
 
 from __future__ import annotations
@@ -29,6 +30,8 @@ SLOTS_BY_GAME = {
     "d4":   ["1", "2", "3", "4", "L", "R"],
     "poe2": ["LMB", "MMB", "RMB", "Q", "E", "R", "T", "F"],
     "d3":   ["1", "2", "3", "4", "L", "R", "Q"],
+    "poe1": ["LMB", "MMB", "RMB", "Q", "W", "E", "R", "T",
+             "1", "2", "3", "4", "5"],
 }
 GAMES = list(SLOTS_BY_GAME)
 
@@ -39,6 +42,12 @@ DEFAULT_OCR_BBOX_BY_GAME: dict[str, tuple[int, int, int, int] | None] = {
     "d4":   None,
     "poe2": (914, 311, 1641, 1036),
     "d3":   None,
+    # POE1 — TODO(calibrate): POE1 shows skill stats in a tooltip that
+    # follows the cursor rather than in a fixed detail panel, so there is
+    # no single static rectangle to capture the way POE2 has. Needs either
+    # a pinned-tooltip screenshot or a different capture strategy. None
+    # disables the CAPTURE buttons; manual entry still works.
+    "poe1": None,
 }
 
 # Reference resolution + UI scale the bboxes above were captured at —

@@ -176,12 +176,12 @@ def install_desktop_entry(theme: str | None = None) -> Path:
         [Desktop Entry]
         Type=Application
         Name=ARPG React
-        Comment=Diablo 4 + Path of Exile 2 companion (timers, rules, auto-cast)
+        Comment=Diablo + Path of Exile companion (timers, rules, auto-cast)
         Exec={exec_line}
         Icon={ICON_BASENAME}
         Terminal=false
         Categories=Game;Utility;
-        Keywords=arpg;diablo;d4;poe2;path of exile;timer;helltide;legion;world boss;
+        Keywords=arpg;diablo;d4;d3;poe;poe1;poe2;path of exile;timer;helltide;legion;world boss;
         StartupNotify=true
         StartupWMClass=arpg-react
         """

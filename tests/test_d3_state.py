@@ -131,12 +131,74 @@ def test_detector_caches_last_grab_for_sibling_watchers():
     from unittest.mock import patch
 
     from arpg_react.watchers.d3_state import D3StateDetector
+    from arpg_react.watchers.game_window import NullWindowLocator
 
     fake = Image.new("RGB", (2560, 1440), (0, 0, 0))
-    detector = D3StateDetector()
+    # NullWindowLocator keeps this a pure grab-caching test — with a live
+    # locator the result depends on whether D3 happens to be running on
+    # the machine running the suite.
+    detector = D3StateDetector(locator=NullWindowLocator())
     with patch("arpg_react.watchers.d3_state.ImageGrab.grab", return_value=fake):
         detector.detect(datetime(2026, 5, 27, 12, 0, tzinfo=timezone.utc))
     assert detector.last_grab is fake
+
+
+class _FixedLocator:
+    """Locator stub that always reports the same window rect."""
+
+    def __init__(self, rect):
+        self.rect = rect
+
+    def locate(self, now):  # noqa: ARG002
+        return self.rect
+
+
+def test_detector_crops_grab_to_the_game_window():
+    """The regression this guards: a 2-monitor 5120x1440 desktop with D3
+    fullscreen on the RIGHT monitor. The whole-desktop grab is 5120 wide
+    but every reference coordinate is game-relative, so without cropping
+    the detector samples the LEFT monitor and reports "no_game" while the
+    player is plainly in combat."""
+    from datetime import datetime, timezone
+    from unittest.mock import patch
+
+    from arpg_react.watchers.d3_state import D3StateDetector
+    from arpg_react.watchers.game_window import WindowRect
+
+    combat = Image.open(REF_DIR / "regular-combat.png").convert("RGB")
+    assert combat.size == (2560, 1440)
+
+    # Left half = a plain desktop, right half = the game.
+    desktop = Image.new("RGB", (5120, 1440), (30, 30, 30))
+    desktop.paste(combat, (2560, 0))
+
+    now = datetime(2026, 8, 22, 12, 0, tzinfo=timezone.utc)
+
+    # Without window tracking: reads the left monitor, misses the game.
+    blind = D3StateDetector(locator=_FixedLocator(None))
+    with patch("arpg_react.watchers.d3_state.ImageGrab.grab", return_value=desktop):
+        assert blind.detect(now).reason != "combat"
+
+    # With window tracking: crops to the game and classifies correctly.
+    tracked = D3StateDetector(
+        locator=_FixedLocator(WindowRect(x=2560, y=0, w=2560, h=1440))
+    )
+    with patch("arpg_react.watchers.d3_state.ImageGrab.grab", return_value=desktop):
+        reading = tracked.detect(now)
+    assert reading.reason == "combat", f"expected combat, got {reading.reason!r}"
+    assert not reading.is_paused
+    assert reading.slot_states, "combat reading should carry per-slot states"
+    # last_grab must be the CROPPED frame — the BuffWatcher crops its
+    # strip bbox out of it using the same game-relative coordinates.
+    assert tracked.last_grab.size == (2560, 1440)
+
+
+def test_window_rect_bbox_and_origin():
+    from arpg_react.watchers.game_window import WindowRect
+
+    assert WindowRect(0, 0, 2560, 1440).is_origin
+    assert not WindowRect(2560, 0, 2560, 1440).is_origin
+    assert WindowRect(2560, 30, 800, 600).bbox == (2560, 30, 3360, 630)
 
 
 def test_hp_estimator_on_blank_screen_reads_zero():

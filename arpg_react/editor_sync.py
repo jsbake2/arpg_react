@@ -48,7 +48,7 @@ def sync_once(
 ) -> int:
     """Pull every build for a single game from the editor backend and write
     to local files. The `?game=<g>` query param is mandatory — without it
-    the backend defaults to D4 and silently stomps the local POE2/D3
+    the backend defaults to D4 and silently stomps the other games'
     builds. (That was the bug fixed when per-game scoping landed.)
 
     `builds_dir` should already be the per-game subdir

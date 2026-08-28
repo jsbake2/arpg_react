@@ -67,6 +67,29 @@ body.game-d3 {
   background: radial-gradient(circle at 50% -10%, #6a2410 0%, #0d0805 60%) fixed;
 }
 
+/* POE1 vaal theme — toxic corruption green. Deliberately a different hue
+   from POE2's azurite rather than a lighter/darker variant of it: the two
+   Path of Exile editors are the pair most likely to be open in adjacent
+   tabs, so they have to be tellable apart from the tab strip alone. */
+body.game-poe1 {
+  --bg:        #060c07;
+  --bg-soft:   #0d1a10;
+  --panel:     #12281a;
+  --panel-hi:  #1a3826;
+  --border:    #1f6b3a;
+  --border-hi: #2a8f4e;
+  --text:      #d6f2df;
+  --text-dim:  #6a9c7d;
+  --text-label: #8ec9a4;
+  --accent:    #57e08a;
+  --accent-hi: #8aefb1;
+  --good:      #3fbf72;
+  --good-hi:   #5fd992;
+  --bad:       #b34257;
+  --bad-hi:    #d46278;
+  background: radial-gradient(circle at 50% -10%, #0d3d22 0%, #040905 60%) fixed;
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 /* Page chrome — neutral dark on the viewport so the area outside the
@@ -513,7 +536,10 @@ body.auth-body {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 28px;
   padding: 60px 28px;
-  max-width: 1100px;
+  /* Fits four 280px tiles on one row: 4×280 + 3×28 gap + 2×28 padding
+     = 1260. Was 1100 (sized for three), which pushed the fourth game
+     onto its own row. */
+  max-width: 1280px;
   margin: 0 auto;
 }
 .game-tile {
@@ -561,6 +587,19 @@ body.auth-body {
   border-color: #e25a14;
   box-shadow: 0 14px 40px rgba(90, 30, 8, 0.55), 0 0 0 1px rgba(226, 90, 20, 0.22);
 }
+
+/* POE1 tile — vaal identity. Corruption green, distinct in hue from
+   POE2's azurite so the two Path of Exile tiles don't blur together. */
+.game-tile.game-poe1 {
+  background: linear-gradient(160deg, #1f6b3a 0%, #0d3d22 55%, #06200f 100%);
+  border-color: #2a7d47;
+  color: #ddf6e6;
+}
+.game-tile.game-poe1 .game-sub { color: #a4dcbb; }
+.game-tile.game-poe1:hover {
+  border-color: #57e08a;
+  box-shadow: 0 14px 40px rgba(0, 75, 35, 0.55), 0 0 0 1px rgba(87, 224, 138, 0.18);
+}
 .game-icon {
   width: 96px;
   height: 96px;
@@ -593,6 +632,7 @@ body.auth-body {
 .game-tag.game-d4 { color: #c9a14a; border-color: #5a4220; }
 .game-tag.game-poe2 { color: #5cd0e0; border-color: #1e6889; }
 .game-tag.game-d3 { color: #e25a14; border-color: #6a3618; }
+.game-tag.game-poe1 { color: #57e08a; border-color: #1f6b3a; }
 
 /* ====== brand glyphs ====== */
 .brand-glyph {

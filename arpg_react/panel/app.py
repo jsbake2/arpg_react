@@ -12,7 +12,15 @@ from PyQt6 import QtCore, QtGui, QtNetwork, QtWidgets
 from arpg_react.ipc.messages import parse_alert, parse_debug, parse_status
 from arpg_react.panel.client import IPCClient
 from arpg_react.panel.dialog import prompt_for_game
-from arpg_react.panel.theme import AZURITE, CINDER, DIABLO, NEUTRAL, Theme, style_qss
+from arpg_react.panel.theme import (
+    AZURITE,
+    CINDER,
+    DIABLO,
+    NEUTRAL,
+    VAAL,
+    Theme,
+    style_qss,
+)
 from arpg_react.panel.settings import SettingsTab
 from arpg_react.panel.tips import TipsTab
 from arpg_react.panel.widgets import (
@@ -35,18 +43,30 @@ GAME_THEME: dict[str, Theme] = {
     "d4":   DIABLO,
     "poe2": AZURITE,
     "d3":   CINDER,
+    "poe1": VAAL,
 }
 
-# Editor backend health endpoint for the POE2 LINKS tab.
+# Editor backend health endpoint for the LINKS tab.
 EDITOR_HEALTH_URL = "https://arpg.jsb-emr.us/healthz"
 
-# External link targets for the POE2 LINKS tab. Keep here (not in config)
-# so they're easy to find and edit; if any of these turn into per-user
-# preferences later, lift them to the profile endpoint.
-POE2_LINKS = [
-    ("POE2 OFFICIAL TRADE", "https://www.pathofexile.com/trade2", "Item search + price-check on the official site."),
-    ("MY POE2 COCKPIT",     "https://poe2.jsb-emr.us/",           "Personal POE2 dashboard."),
-]
+# External link targets for the LINKS tab, per game. Keep here (not in
+# config) so they're easy to find and edit; if any of these turn into
+# per-user preferences later, lift them to the profile endpoint.
+#
+# Games absent from this dict get no LINKS tab at all (D4 has TIMERS in
+# that slot; D3 has no external surface worth linking).
+LINKS_BY_GAME: dict[str, list[tuple[str, str, str]]] = {
+    "poe2": [
+        ("POE2 OFFICIAL TRADE", "https://www.pathofexile.com/trade2", "Item search + price-check on the official site."),
+        ("MY POE2 COCKPIT",     "https://poe2.jsb-emr.us/",           "Personal POE2 dashboard."),
+    ],
+    "poe1": [
+        ("POE1 OFFICIAL TRADE", "https://www.pathofexile.com/trade",  "Item search + price-check on the official site."),
+        ("POE.NINJA",           "https://poe.ninja/",                 "League economy, build stats, and price history."),
+        ("PATH OF BUILDING",    "https://pobb.in/",                   "Share and inspect Path of Building exports."),
+        ("POEDB",               "https://poedb.tw/us/",               "Datamined item, gem, and mod reference."),
+    ],
+}
 
 
 def _open_url(url: str) -> None:
@@ -112,10 +132,11 @@ class BuildTab(QtWidgets.QWidget):
 # health pill (closest thing to "server status" we actually have).
 
 class LinksTab(QtWidgets.QWidget):
-    def __init__(self, theme: Theme, parent=None) -> None:
+    def __init__(self, theme: Theme, game: str, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("tabBody")
         self.theme = theme
+        self._game = game
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(20, 24, 20, 16)
@@ -125,7 +146,7 @@ class LinksTab(QtWidgets.QWidget):
         intro.setObjectName("linksTitle")
         layout.addWidget(intro)
 
-        for label, url, desc in POE2_LINKS:
+        for label, url, desc in LINKS_BY_GAME.get(game, []):
             layout.addWidget(self._make_link_row(label, url, desc))
 
         # Editor backend health pill.
@@ -245,6 +266,10 @@ class PanelWindow(QtWidgets.QMainWindow):
             {
                 "d4":   "Sanctuary companion",
                 "poe2": "Wraeclast companion",
+                # Both POE games are set in Wraeclast; give POE1 a
+                # different word so the two panels aren't identical in
+                # the header when both are open.
+                "poe1": "Exile's companion",
                 "d3":   "Nephalem companion",
             }.get(game, "")
         )
@@ -280,11 +305,15 @@ class PanelWindow(QtWidgets.QMainWindow):
             self.tabs.addTab(self.tips_tab, "TIPS")
             self.tabs.addTab(self.settings_tab, "SETTINGS")
             self.tabs.setCurrentIndex(0)
-        elif game == "poe2":
-            self.links_tab = LinksTab(theme)
+        elif game in ("poe2", "poe1"):
+            # Neither POE has scheduled world events on a fixed clock the
+            # way D4 does, so the first slot goes to LINKS instead of
+            # TIMERS. Same tab set and ordering for both; only the link
+            # list (LINKS_BY_GAME) and tips file differ.
+            self.links_tab = LinksTab(theme, game)
             self.tabs.addTab(self.links_tab, "LINKS")
             self.tabs.addTab(self.build_tab, "BUILD")
-            self.tips_tab = TipsTab(theme, "poe2", resources_root)
+            self.tips_tab = TipsTab(theme, game, resources_root)
             self.tabs.addTab(self.tips_tab, "TIPS")
             self.tabs.addTab(self.settings_tab, "SETTINGS")
             self.tabs.setCurrentIndex(1)  # default to BUILD — the working tab
@@ -297,12 +326,19 @@ class PanelWindow(QtWidgets.QMainWindow):
             self.tabs.addTab(self.settings_tab, "SETTINGS")
             self.tabs.setCurrentIndex(0)
         else:
-            # Defensive — should never hit, dialog only emits d4/poe2/d3.
+            # Defensive — should never hit, dialog only emits
+            # d4/poe2/poe1/d3.
             raise ValueError(f"unsupported game: {game}")
 
-        # Footer — D3 has no scheduled event timers, so hide the TIMERS
-        # toggle + helltides-source health label entirely for that game.
-        self.footer = FooterBar(theme, show_events=(game != "d3"))
+        # Footer — only D4 has scheduled world events (Helltide, Legion,
+        # World Boss, Realmwalker), so the TIMERS toggle + helltides-
+        # source health label are D4-only.
+        #
+        # Was `game != "d3"`, which meant POE2 rendered a TIMERS toggle
+        # and a helltides.com health pill on a panel that has no TIMERS
+        # tab and no D4 event feed. Tightened to an equality check while
+        # adding POE1 so all three non-D4 games behave the same.
+        self.footer = FooterBar(theme, show_events=(game == "d4"))
 
         # Compose
         center = QtWidgets.QWidget()
@@ -501,6 +537,8 @@ def _resolve_theme(theme_name: str | None, game: str) -> Theme:
         return AZURITE
     if theme_name == "cinder":
         return CINDER
+    if theme_name == "vaal":
+        return VAAL
     return GAME_THEME.get(game, DIABLO)
 
 

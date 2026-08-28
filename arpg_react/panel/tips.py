@@ -1,7 +1,7 @@
 """Tips tab — curated strategy tips per game, with a refresh button that
 also pulls the current top-of-week posts from the game's subreddit.
 
-Curated tips live in `arpg_react/resources/tips_{d4,poe2}.json` and are
+Curated tips live in `arpg_react/resources/tips_{d4,d3,poe1,poe2}.json` and are
 shipped with the package; refresh those by editing the file (or asking
 Claude to update them). Reddit posts are fetched on demand via the panel's
 existing QNetworkAccessManager pattern — no extra dependency.
@@ -30,6 +30,9 @@ log = logging.getLogger(__name__)
 SUBREDDIT = {
     "d4":   "diablo4",
     "poe2": "PathOfExile2",
+    # POE1's sub is just r/pathofexile — it predates POE2 and kept the
+    # unqualified name, so this is NOT a typo for PathOfExile1.
+    "poe1": "pathofexile",
     "d3":   "Diablo3",
 }
 

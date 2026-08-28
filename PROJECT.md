@@ -2,7 +2,7 @@
 
 > _(historical name: "Sanctum Signal" — kept as the Python package + CLI command for stability)_
 
-A Diablo 4 + Path of Exile 2 companion daemon for solo PC players on Linux. Two read-only jobs, one process:
+A Diablo 4 / Diablo 3 / Path of Exile / Path of Exile 2 companion daemon for solo PC players on Linux. Two read-only jobs, one process:
 
 1. **Event timers** — countdowns + audio/notify alerts for Helltide, Legion, Realmwalker, and World Boss spawns.
 2. **Pixel watchers** — sample one or more configured screen pixels, alert on color transitions (e.g. spell-ready glint, mana-low globe, cinder cap reached).
@@ -47,23 +47,45 @@ Both are **read-only and non-interactive** — no game memory, no input, no scre
 
 ## Cross-game parity — read before adding ANY feature
 
-Both D4 and POE2 are first-class targets. **Whenever you add or change a feature touching one game, explicitly evaluate whether the other game needs the same treatment.** Defaulting to "I'll come back for POE2 later" is how the codebase ends up D4-only by accident.
+**D4, D3, POE1, and POE2 are all first-class targets.** Whenever you add or change a feature touching one game, explicitly evaluate whether the other three need the same treatment. Defaulting to "I'll come back for the others later" is how the codebase ends up D4-only by accident.
+
+The mechanical half of this is now enforced by `tests/test_game_parity.py`. It pins every per-game registry against one canonical `GAMES` roster: hotbar order, default keymaps, press modifiers, buff-row and OCR bboxes, panel themes, tips subreddits, curated tips files, the editor's `VALID_GAMES` / `VALID_HOTKEYS` / `HOTKEYS_BY_GAME`, and `refresh_tips.SOURCES`. Adding a game means adding it to that roster first and then fixing everything the suite reports.
+
+**That test only catches missing dict entries.** It cannot tell you a bbox is uncalibrated, a detector is reading the wrong pixels, or a class roster is out of date. The judgement calls below are still yours.
 
 A feature counts for parity review if it touches:
 - Detector logic (chat input, town, mounted, menu, boss, slot states, orb fills)
 - Rule-engine semantics or new condition types
-- Input gating / safety (e.g. the chat-open auto-pause is a safety feature both games need — D4 chat shipped first; POE2 chat detection is still TODO)
+- Input gating / safety (e.g. the chat-open auto-pause is a safety feature every game needs — D4 chat shipped first; POE2, POE1, and D3 chat detection are still TODO)
 - Panel/UI surfaces, themes, alert dispatch
 - Editor schema or per-build defaults
 
 For each one, ask:
-1. **Does the other game need the same behavior?** Usually yes for safety/correctness; sometimes no for game-specific UI shapes.
-2. **What does the other game's reference data look like?** Most pixel/template detection requires a fresh screenshot from POE2 even when the D4 version works perfectly.
+1. **Do the other games need the same behavior?** Usually yes for safety/correctness; sometimes no for game-specific UI shapes.
+2. **What does each other game's reference data look like?** Most pixel/template detection requires a fresh screenshot from that specific game even when the D4 version works perfectly.
 3. **Is this a deliberate single-game choice or just expedience?** If expedience, file it in the open-items list so it doesn't get forgotten.
 
-**Canonical example:** the D4 chat-open detector (added 2026-05-20). The pinkish "Local" channel-label signature is D4-specific UI; POE2's chat box looks different and needs its own bbox + color signature. Both games face the same risk (typing hotkeys into chat = a ban-worthy flag), so POE2 chat detection is **not optional** — it's outstanding work the moment the D4 version shipped.
+**Canonical example:** the D4 chat-open detector (added 2026-05-20). The pinkish "Local" channel-label signature is D4-specific UI; every other game's chat box looks different and needs its own bbox + color signature. All four games face the same risk (typing hotkeys into chat = a ban-worthy flag), so per-game chat detection is **not optional** — it's outstanding work the moment the D4 version shipped.
 
 When you complete only one side, leave a note in the next session handoff calling out the parity gap.
+
+### Per-game support matrix (as of 2026-07-26)
+
+| Capability | D4 | D3 | POE2 | POE1 |
+|---|---|---|---|---|
+| Hotbar slots | 1-4, L, R | 1-4, L, R, Q | LMB/MMB/RMB, Q/E/R/T/F | LMB/MMB/RMB, Q/W/E/R/T + flasks 1-5 |
+| Panel theme | DIABLO (crimson/gold) | CINDER (burnt orange) | AZURITE (cyan/teal) | VAAL (toxic green) |
+| Panel tabs | TIMERS, BUILD, TIPS, SETTINGS | BUILD, TIPS, SETTINGS | LINKS, BUILD, TIPS, SETTINGS | LINKS, BUILD, TIPS, SETTINGS |
+| Movement gating | yes (WASD) | no (click-to-move) | yes (WASD) | no (click-to-move) |
+| Scheduled event timers | yes | no | no | no |
+| Buff watcher | no bbox | CoE, calibrated | Savage Fury, calibrated | **TODO — bbox uncalibrated** |
+| Skill-timing OCR | no bbox | no bbox | calibrated | **TODO — no fixed panel to capture** |
+| State detector | native | native (`d3_state`) | none (defaults IN_COMBAT) | none (defaults IN_COMBAT) |
+| Chat-open detection | yes | no | **TODO** | **TODO** |
+
+POE1's two calibration gaps both need a screenshot dropped in `arpg_stuff/poe1/` with the region outlined, same workflow as the POE2 Savage Fury and D3 CoE captures. Until then the buff watcher simply never constructs for POE1 (`DEFAULT_BUFF_ROW_BBOX_BY_GAME["poe1"] is None`) and the calibrator's CAPTURE buttons are inert — manual timing entry still works.
+
+POE1's OCR gap is not the same shape as the others: POE2 renders skill stats in a fixed detail panel, but POE1 uses a cursor-following tooltip, so there is no static rectangle to grab. It needs a different capture strategy, not just a coordinate.
 
 ---
 

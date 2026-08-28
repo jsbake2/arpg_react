@@ -55,7 +55,7 @@ from arpg_react.ipc import (
     status_frame_to_dict,
 )
 from arpg_react.ipc.messages import alert_frame_from_event
-from arpg_react.rules import BuildV2, ConditionType
+from arpg_react.rules import BuildV2, ConditionType, SlotState
 from arpg_react.sources import HelltidesSource, TimerSource
 from arpg_react.timers import EventKind
 from arpg_react.watchers import InputController
@@ -69,6 +69,16 @@ from arpg_react.watchers.movement_monitor import MovementMonitor
 from arpg_react.watchers.rule_engine_v2 import RuleEngineV2
 
 log = logging.getLogger(__name__)
+
+# The D3 state detector speaks its own three-value vocabulary
+# ("READY" / "COOLDOWN" / "ACTIVE"); the rule engine speaks SlotState.
+# Only "ACTIVE" differs — it means D3 has lit the green cast strip above
+# the icon, which is SlotState.ACTIVE_READY. Without this alias
+# `SlotState("ACTIVE")` raised ValueError and the translation loop below
+# silently DROPPED that slot from the map, so every `SLOT_STATE_IS`
+# condition targeting a currently-casting skill looked up a missing key
+# and could never match.
+_D3_SLOT_STATE_ALIASES = {"ACTIVE": SlotState.ACTIVE_READY}
 
 TICK_SECONDS = 0.25
 STATUS_BROADCAST_INTERVAL = 1.0
@@ -252,6 +262,13 @@ def run(
         mount_ref=mount_ref_scaled,
     )
 
+    # Window tracking, shared by the detector, the D3 state detector and
+    # the POE buff-strip grab. All three index game-relative coordinates
+    # into a desktop-absolute screen grab, so all three read the wrong
+    # monitor when the game isn't on the leftmost one.
+    from arpg_react.watchers.game_window import GameWindowLocator
+    window_locator = GameWindowLocator(_daemon_game)
+
     # D3 has no per-slot UI calibration yet — the D4 detector's slot/orb
     # coordinates don't match D3's hotbar. Use a lightweight D3-specific
     # detector that only resolves the pause states (ESC menu, chat,
@@ -260,7 +277,9 @@ def run(
     d3_state_detector = None
     if game == "d3":
         from arpg_react.watchers.d3_state import D3StateDetector
-        d3_state_detector = D3StateDetector(screen_w=sw, screen_h=sh)
+        d3_state_detector = D3StateDetector(
+            screen_w=sw, screen_h=sh, locator=window_locator,
+        )
         log.info("d3 state detector active (%dx%d)", sw, sh)
 
     engine = RuleEngineV2(
@@ -290,14 +309,19 @@ def run(
 
     # Buff watcher — D3 (CoE) and POE2 (Savage Fury). For D3 we reuse the
     # state-detector's full-screen grab so no second ImageGrab fires per
-    # tick. POE2 has no full-screen state detector, so the watcher grabs
-    # its own buff-strip region (small, cheap — ~25 ms on Wayland via grim
-    # at the strip's ~2250×108 size). Search bbox comes from per-game
+    # tick. POE2/POE1 have no full-screen state detector, so the watcher
+    # grabs its own buff-strip region (small, cheap — ~25 ms on Wayland via
+    # grim at the strip's ~2250×108 size). Search bbox comes from per-game
     # config; if the game has no bbox configured the watcher stays None
     # and the BUFFS tab is effectively a no-op for that game.
+    #
+    # POE1 is listed here for parity but its bbox is still None pending
+    # calibration, so it takes the `bbox is None` path below and no
+    # watcher is constructed. Adding the bbox is the only step needed to
+    # light it up.
     buff_watcher = None
     buff_strip_grab_bbox: tuple[int, int, int, int] | None = None
-    if game in ("d3", "poe2"):
+    if game in ("d3", "poe2", "poe1"):
         from arpg_react.config import DEFAULT_BUFF_ROW_BBOX_BY_GAME
         from arpg_react.watchers.buff_watcher import BuffWatcher
         bbox = DEFAULT_BUFF_ROW_BBOX_BY_GAME.get(game)
@@ -318,8 +342,9 @@ def run(
                 "buff watcher active (%s, %d buffs, bbox=%s)",
                 game, len(active_build.buffs), scaled_bbox,
             )
-            if game == "poe2":
-                # POE2 needs its own grab — see comment block above.
+            if game in ("poe2", "poe1"):
+                # No full-screen state detector for these — they need
+                # their own grab. See comment block above.
                 buff_strip_grab_bbox = scaled_bbox
 
     commands: queue.Queue[dict[str, Any]] = queue.Queue()
@@ -559,12 +584,22 @@ def run(
                 except Exception as exc:  # noqa: BLE001
                     log.warning("command handler raised: %s", exc)
 
+            # Scheduled world events (Helltide, Legion, Realmwalker,
+            # World Boss) are a D4-only feature — see the support matrix
+            # in PROJECT.md. Polling the source for the other three games
+            # fetched helltides.com on their behalf and filled their logs
+            # with "source error for helltide" / "primary source
+            # unavailable for legion", which reads like a real fault when
+            # you are debugging, say, D3. Those games render no TIMERS
+            # tab and no source-health pill, so there is nothing on the
+            # far end to consume the statuses either.
             statuses = {}
-            for kind in EventKind:
-                try:
-                    statuses[kind] = source.status(kind, now)
-                except Exception as exc:  # noqa: BLE001
-                    log.warning("source error for %s: %s", kind.value, exc)
+            if _daemon_game == "d4":
+                for kind in EventKind:
+                    try:
+                        statuses[kind] = source.status(kind, now)
+                    except Exception as exc:  # noqa: BLE001
+                        log.warning("source error for %s: %s", kind.value, exc)
 
             for alert in scheduler.tick(now, statuses):
                 if not state["events_paused"]:
@@ -579,6 +614,15 @@ def run(
             engine_obj = state["engine"]
             reading = None
             d3_reading = None
+            # Where the game is on the desktop this tick. The D3 detector
+            # resolves this itself (it shares the same locator instance,
+            # so this costs one lookup between them, not two); the
+            # D4-style detector and the POE buff-strip grab are told.
+            window_rect = window_locator.locate(now)
+            window_origin = (
+                (window_rect.x, window_rect.y) if window_rect is not None else (0, 0)
+            )
+            detector.origin = window_origin
             if d3_state_detector is not None:
                 try:
                     d3_reading = d3_state_detector.detect(now)
@@ -627,18 +671,18 @@ def run(
                 ctx = GameContext.DISABLED
             elif reading is None:
                 ctx = GameContext.UNKNOWN
-            elif game == "poe2":
-                # POE2 uses the D4-style Detector but its slot/orb sample
-                # coords are calibrated for D4 — POE2's HP orb sits at
-                # different pixels, so the detector reads hp_fill=0 and
-                # classifies every POE2 scene as `game_state = MENU`,
-                # which would route every rule's press through the
+            elif game in ("poe2", "poe1"):
+                # POE2/POE1 use the D4-style Detector but its slot/orb
+                # sample coords are calibrated for D4 — their HP orbs sit
+                # at different pixels, so the detector reads hp_fill=0 and
+                # classifies every scene as `game_state = MENU`, which
+                # would route every rule's press through the
                 # INPUT_SUPPRESSED branch and silently swallow it. The
-                # only detector output we can trust for POE2 is
-                # `chat_open` (different pixels, checked above) — so for
-                # everything else POE2 defaults to IN_COMBAT and we lean
-                # on the F7 manual pause + the chat-open gate. When a
-                # POE2-specific detector lands, drop this branch.
+                # only detector output we can trust here is `chat_open`
+                # (different pixels, checked above) — so for everything
+                # else these games default to IN_COMBAT and we lean on the
+                # F7 manual pause + the chat-open gate. When a per-game
+                # detector lands, drop that game from this branch.
                 ctx = GameContext.IN_COMBAT
             elif reading.game_state in (
                 DetectorGameState.MENU,
@@ -668,9 +712,11 @@ def run(
             # that resets _last_seen so when the user re-enables, a
             # buff that's still up will ring as a fresh rising edge.
             # Buff watcher tick. Two paths:
-            #   D3  — reuse d3_state_detector.last_grab (no extra ImageGrab)
-            #   POE2 — small dedicated ImageGrab of just the buff strip
-            #          (~2250×108 ≈ 240k px; ~25 ms via grim on Wayland)
+            #   D3         — reuse d3_state_detector.last_grab (no extra
+            #                ImageGrab)
+            #   POE2/POE1  — small dedicated ImageGrab of just the buff
+            #                strip (~2250×108 ≈ 240k px; ~25 ms via grim
+            #                on Wayland)
             #
             # Gating is intentionally minimal: engine.enabled (F7 toggle)
             # and not chat-open. We DON'T gate on game state — Savage Fury
@@ -681,7 +727,7 @@ def run(
             # alerts whenever the detector classified the scene as TOWN
             # or MENU.
             buff_img = None
-            poe2_should_tick = (
+            own_grab_should_tick = (
                 buff_watcher is not None
                 and buff_strip_grab_bbox is not None
                 and state["engine"].enabled
@@ -697,14 +743,16 @@ def run(
             )
             if d3_should_tick:
                 buff_img = d3_state_detector.last_grab
-            elif poe2_should_tick:
+            elif own_grab_should_tick:
                 try:
                     from PIL import ImageGrab
+                    bx, by = window_origin
+                    sx1, sy1, sx2, sy2 = buff_strip_grab_bbox
                     buff_img = ImageGrab.grab(
-                        bbox=buff_strip_grab_bbox,
+                        bbox=(sx1 + bx, sy1 + by, sx2 + bx, sy2 + by),
                     ).convert("RGB")
                 except Exception as exc:  # noqa: BLE001
-                    log.warning("poe2 buff strip grab failed: %s", exc)
+                    log.warning("%s buff strip grab failed: %s", game, exc)
                     buff_img = None
 
             if buff_img is not None:
@@ -728,14 +776,27 @@ def run(
                 # engine's HotkeyKind → SlotState map so rules with
                 # SLOT_STATE_IS conditions can be evaluated for D3.
                 from arpg_react.config import HotkeyKind
-                from arpg_react.rules import SlotState as _SlotState
-                fresh: dict[HotkeyKind, _SlotState] = {}
+                fresh: dict[HotkeyKind, SlotState] = {}
                 for slot_name, state_name in d3_reading.slot_states.items():
                     try:
                         hk = HotkeyKind(slot_name)
-                        st = _SlotState(state_name)
                     except ValueError:
+                        log.warning(
+                            "d3 detector reported unknown slot %r — ignoring",
+                            slot_name,
+                        )
                         continue
+                    st = _D3_SLOT_STATE_ALIASES.get(state_name)
+                    if st is None:
+                        try:
+                            st = SlotState(state_name)
+                        except ValueError:
+                            log.warning(
+                                "d3 detector reported unknown state %r for slot %s "
+                                "— treating as UNKNOWN",
+                                state_name, slot_name,
+                            )
+                            st = SlotState.UNKNOWN
                     fresh[hk] = st
                 engine_obj.slot_states = fresh
                 # Project the D3 HP-orb estimate into the engine's HEALTH
@@ -747,7 +808,15 @@ def run(
                     "RESOURCE_LEFT": 0.0,
                     "RESOURCE_RIGHT": 0.0,
                 }
-            engine_obj._input = None if ctx in INPUT_SUPPRESSED else input_controller  # noqa: SLF001
+            # Suppress input via the explicit engine flag instead of
+            # nulling `_input`: with the old approach the engine still
+            # ticked, "fired" rules as no-ops, and advanced their
+            # cooldown timestamps — silently consuming long-cooldown
+            # builds (e.g. D3 LON Meteor's 550s Magic Weapon refresh)
+            # for nine minutes whenever the detector mis-classified
+            # the first tick as paused.
+            engine_obj._input = input_controller  # noqa: SLF001
+            engine_obj.set_input_suppressed(ctx in INPUT_SUPPRESSED)
             # Hand the rule engine this tick's pressed-trigger tokens.
             # Drain even when the engine is disabled — the listener
             # would otherwise accumulate a backlog of presses that all
@@ -755,7 +824,11 @@ def run(
             engine_obj.hotkeys_pressed = trigger_listener.drain()
             engine_obj.tick(now)
 
-            if ipc is not None and statuses:
+            # NOT gated on `statuses` — that guard silently held back
+            # every build / monitoring / context frame for any game
+            # without scheduled events once the poll above became
+            # D4-only, leaving those panels frozen on their first frame.
+            if ipc is not None:
                 monotonic = time.monotonic()
                 if monotonic - last_status_broadcast >= STATUS_BROADCAST_INTERVAL:
                     last_status_broadcast = monotonic

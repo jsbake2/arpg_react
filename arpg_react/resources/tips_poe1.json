@@ -1,0 +1,191 @@
+[
+  {
+    "id": "poe1-cap-elemental-res-before-maps",
+    "title": "Cap All Three Elemental Resistances Before You Enter Maps",
+    "body": "The final act quest penalty leaves you at -60% to all elemental resistances, so 'uncapped' gear that felt fine in acts is a death sentence in maps. Get fire, cold, and lightning to the 75% cap before your first map — not after your first few deaths. Resistances are the cheapest defensive stat in the game: a 30-40% triple-res rare ring or a Chaos-spammed belt costs a few Alterations. Chaos resistance is a distant fourth priority; ignore it until elemental is capped and your life pool is sorted.",
+    "topic": "Endgame",
+    "classes": [],
+    "source_label": "PoE Wiki",
+    "source_url": "https://www.poewiki.net/wiki/Resistance",
+    "added_date": "2026-07-26",
+    "pinned": false
+  },
+  {
+    "id": "poe1-life-on-every-rare",
+    "title": "Every Rare Slot Should Roll Maximum Life",
+    "body": "Outside of dedicated Chaos Inoculation or Energy Shield builds, treat maximum life as a mandatory affix on helm, chest, gloves, boots, belt, both rings, and amulet. Eight slots at 70-90 life each is 600+ life — more than any cluster of passive tree nodes will give you for the same investment. When comparing two rares, the one with life almost always wins, because damage is easy to scale from gems and the tree while life is only available from gear and a handful of tree nodes.",
+    "topic": "General",
+    "classes": [],
+    "source_label": "PoE Wiki",
+    "source_url": "https://www.poewiki.net/wiki/Life",
+    "added_date": "2026-07-26",
+    "pinned": false
+  },
+  {
+    "id": "poe1-chromatic-vendor-recipe",
+    "title": "Never Buy Chromatic Orbs — Vendor RGB-Linked Items",
+    "body": "Any item with a red, green, and blue socket all linked together vendors for exactly one Chromatic Orb. Three-socket RGB items drop constantly through the acts, so you should never spend currency on Chromatics. Set a loot filter rule to highlight RGB-linked drops and pick them up while leveling; by maps you will have a stack large enough to colour any chest piece you find.",
+    "topic": "Currency",
+    "classes": [],
+    "source_label": "PoE Wiki",
+    "source_url": "https://www.poewiki.net/wiki/Vendor_recipe_system",
+    "added_date": "2026-07-26",
+    "pinned": false
+  },
+  {
+    "id": "poe1-chaos-regal-full-set-recipe",
+    "title": "Full Rare Sets Vendor Into Chaos or Regal Orbs",
+    "body": "Selling one full set of rare equipment — two rings, amulet, belt, helm, chest, gloves, boots, and a weapon set — yields a Chaos Orb. If every piece in the set is item level 75 or higher, you get a Regal Orb instead. Unidentified sets upgrade the return further. This is the single most reliable early-league income floor: it turns otherwise-vendor-trash rares into the currency you actually spend, and it costs nothing but inventory discipline.",
+    "topic": "Currency",
+    "classes": [],
+    "source_label": "PoE Wiki",
+    "source_url": "https://www.poewiki.net/wiki/Vendor_recipe_system",
+    "added_date": "2026-07-26",
+    "pinned": false
+  },
+  {
+    "id": "poe1-all-four-labs-ascendancy",
+    "title": "Run All Four Labyrinths — Ascendancy Points Beat Gear",
+    "body": "The Normal, Cruel, Merciless, and Eternal (Uber) Labyrinths award two Ascendancy points each, for eight total. Those eight points are worth far more than an equivalent number of regular passive points — most Ascendancies fundamentally change how the build functions rather than adding incremental stats. Do not defer the Labyrinth because the trials are tedious: run each one as soon as you out-level it, since the power spike carries the rest of your progression.",
+    "topic": "Leveling",
+    "classes": [],
+    "source_label": "PoE Wiki",
+    "source_url": "https://www.poewiki.net/wiki/Labyrinth",
+    "added_date": "2026-07-26",
+    "pinned": false
+  },
+  {
+    "id": "poe1-quicksilver-movement-skill",
+    "title": "Quicksilver Flask Plus a Movement Skill Is Your Real Clear Speed",
+    "body": "Movement speed compounds with everything you do — more maps per hour, more currency per hour. Pick up a Quicksilver Flask in Act 1 and keep one until endgame, and slot a movement skill (Flame Dash, Frostblink, Dash, Leap Slam, or Shield Charge) from the very first act. Boots with 30% movement speed are worth more than boots with better resistances at almost every point in leveling. Most new players under-invest here and wonder why their clear feels slow despite adequate damage.",
+    "topic": "Leveling",
+    "classes": [],
+    "source_label": "PoE Wiki",
+    "source_url": "https://www.poewiki.net/wiki/Movement_speed",
+    "added_date": "2026-07-26",
+    "pinned": false
+  },
+  {
+    "id": "poe1-path-of-building-before-respec",
+    "title": "Model Changes in Path of Building Before Spending Regrets",
+    "body": "Regret Orbs are finite and passive respecs are expensive, so never re-path on a hunch. Import your character into Path of Building Community, make the change there, and compare the actual DPS and effective-hit-pool numbers before committing in game. The same applies to gear upgrades: PoB will tell you when a shiny rare is a downgrade because you lost a resistance you were relying on. This one habit prevents most mid-league build dead-ends.",
+    "topic": "General",
+    "classes": [],
+    "source_label": "Path of Building Community",
+    "source_url": "https://www.pathofbuilding.community/",
+    "added_date": "2026-07-26",
+    "pinned": false
+  },
+  {
+    "id": "poe1-atlas-tree-specialize-one-mechanic",
+    "title": "Specialize the Atlas Tree Into One or Two Mechanics",
+    "body": "The Atlas passive tree rewards concentration, not breadth. Spreading points thinly across every league mechanic produces maps where nothing is dense enough to be profitable. Pick one or two mechanics you actually enjoy — Essences, Harvest, Legion, Breach, Delirium — and push their wheels to completion, including the notables that force the mechanic to appear more often. A fully specialized single-mechanic Atlas out-earns a generalist one by a wide margin.",
+    "topic": "Atlas",
+    "classes": [],
+    "source_label": "PoE Wiki",
+    "source_url": "https://www.poewiki.net/wiki/Atlas_of_Worlds",
+    "added_date": "2026-07-26",
+    "pinned": false
+  },
+  {
+    "id": "poe1-essences-guarantee-mods",
+    "title": "Essences Are the Cheapest Deterministic Crafting Step",
+    "body": "Essences guarantee a specific modifier on the item they are used on, which makes them the most reliable way to hit a required stat without gambling stacks of Alterations. Screaming and Shrieking tiers of the life, resistance, and damage essences will carry most of your gear from campaign through early maps. Reserve fossils and Harvest crafting for the pieces where you actually need multiple specific mods — for a single wanted affix, an essence is faster and cheaper.",
+    "topic": "Crafting",
+    "classes": [],
+    "source_label": "PoE Wiki",
+    "source_url": "https://www.poewiki.net/wiki/Essence",
+    "added_date": "2026-07-26",
+    "pinned": false
+  },
+  {
+    "id": "poe1-delve-sulphite-azurite-budget",
+    "title": "Delve Is a Sulphite Budget, Not an Infinite Mine",
+    "body": "Every step into the Azurite Mine costs Voltaxic Sulphite, and sulphite only comes from Niko encounters in maps. Plan the run before you spend it: push depth on the main path when you want higher item level and fossils, or spend it on side nodes when you want a specific biome's rewards. Azurite itself upgrades your flares and dynamite, which is what actually lets you survive off-path in the darkness — upgrade the light radius and flare capacity early rather than hoarding.",
+    "topic": "Delve",
+    "classes": [],
+    "source_label": "PoE Wiki",
+    "source_url": "https://www.poewiki.net/wiki/Delve",
+    "added_date": "2026-07-26",
+    "pinned": false
+  },
+  {
+    "id": "poe1-map-mods-that-kill-you",
+    "title": "Read Map Mods — Two of Them Will Kill Any Build",
+    "body": "Before running a map, check for the mods your build genuinely cannot handle rather than rolling blind. 'Players cannot Regenerate Life, Mana or Energy Shield' bricks any regeneration-based sustain, and 'Monsters reflect a portion of Physical/Elemental Damage' can one-shot high-DPS builds instantly. Reflect in particular kills more characters than any boss. Reroll those mods rather than testing them; a Chaos Orb is cheaper than the experience loss from a death.",
+    "topic": "Mapping",
+    "classes": [],
+    "source_label": "PoE Wiki",
+    "source_url": "https://www.poewiki.net/wiki/Map",
+    "added_date": "2026-07-26",
+    "pinned": false
+  },
+  {
+    "id": "poe1-loot-filter-day-one",
+    "title": "Install a Loot Filter Before You Start the League",
+    "body": "Path of Exile drops far more items than are worth reading, and the default filter shows nearly all of them. A maintained filter such as NeverSink's hides the noise and colour-codes the currency and bases that actually matter, including the RGB-linked and full-set recipe items. This is the single largest quality-of-life change available to a new or returning player, and it directly increases currency per hour by making the valuable drops impossible to miss.",
+    "topic": "General",
+    "classes": [],
+    "source_label": "Path of Exile (official)",
+    "source_url": "https://www.pathofexile.com/item-filter/about",
+    "added_date": "2026-07-26",
+    "pinned": false
+  },
+  {
+    "id": "poe1-poe-ninja-price-check",
+    "title": "Price-Check on poe.ninja Before Listing or Buying",
+    "body": "League economies move fast, and an item that was worth a Divine in week one may be worth a few Chaos by week three. Check poe.ninja for the current going rate before you list something or accept a trade. It also publishes build statistics for the current league, which is the fastest way to see what is actually performing rather than what was strong in the last patch. Treat the build data as a starting point for your own Path of Building work, not as a copy target.",
+    "topic": "Currency",
+    "classes": [],
+    "source_label": "poe.ninja",
+    "source_url": "https://poe.ninja/",
+    "added_date": "2026-07-26",
+    "pinned": false
+  },
+  {
+    "id": "poe1-gem-quality-and-links",
+    "title": "Links Matter More Than Gem Level Early On",
+    "body": "A four-link setup with the right support gems beats a higher-level main skill in a three-link almost every time, because supports are multiplicative. Prioritize finding or crafting a four-link chest during the campaign over levelling your main gem, and use the Act 3 vendors to buy the support gems your build wants rather than waiting for drops. Gem quality is a real but late optimization — get the links first, then worry about pushing gems to 20/20.",
+    "topic": "Gems",
+    "classes": [],
+    "source_label": "PoE Wiki",
+    "source_url": "https://www.poewiki.net/wiki/Support_gem",
+    "added_date": "2026-07-26",
+    "pinned": false
+  },
+  {
+    "id": "poe1-allflame-scion-luminary-companions",
+    "title": "Scion's Luminary Ascendancy Summons Permanent Mercenary Companions",
+    "body": "Path of Exile 1: Curse of the Allflame introduces the Scion's new Luminary Ascendancy, which features unique mechanics around permanent Mercenary companions that participate in combat. This fundamentally changes how Scion builds scale — companions benefit from your gear and passive tree, opening entirely new build archetypes beyond traditional stat-stacking. If you're considering Scion this league, review the Luminary showcase to understand how companion scaling interacts with your planned skill gems and support setup.",
+    "topic": "Class",
+    "classes": [
+      "Scion"
+    ],
+    "source_label": "Path of Exile (official)",
+    "source_url": "https://www.pathofexile.com/forum/view-thread/3987498",
+    "added_date": "2026-07-27",
+    "pinned": false
+  },
+  {
+    "id": "poe1-pact-gems-allflame",
+    "title": "New Pact Gems Added in Curse of the Allflame — Review Before Pathing",
+    "body": "Curse of the Allflame introduces several new Skill and Support Gems, including the new Pact Gems, which represent a fresh mechanic type in the game. These gems may open new viable builds or change the gem links your planned build actually needs. Before committing Regret Orbs or finalizing your tree, check the new gem list to see if any Pact Gems align with your archetype — early league adoption of undervalued new gems can be extremely profitable or enable stronger clear than the previous patch's standard setup.",
+    "topic": "Gems",
+    "classes": [],
+    "source_label": "Path of Exile (official)",
+    "source_url": "https://www.pathofexile.com/forum/view-thread/3987254",
+    "added_date": "2026-07-27",
+    "pinned": false
+  },
+  {
+    "id": "poe1-crafting-bench-in-towns",
+    "title": "Crafting Benches Now Available in Every Town — Save Portal Scrolls",
+    "body": "Curse of the Allflame adds a Crafting Bench to every town in Path of Exile 1, eliminating the need to return to your hideout for quick crafts during campaign and early maps. This saves portal scrolls and travel time, letting you stay in the field longer and craft on-the-fly. Always check the town bench before heading back to hideout for crafting duties.",
+    "topic": "General",
+    "classes": [],
+    "source_label": "Path of Exile (official)",
+    "source_url": "https://www.pathofexile.com/forum/view-thread/3986639",
+    "added_date": "2026-07-28",
+    "pinned": false
+  }
+]

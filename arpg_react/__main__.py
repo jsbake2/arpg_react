@@ -138,7 +138,7 @@ def cmd_sync_builds(
     each game's builds into its own per-game subdir under
     `~/.config/arpg_react/builds/<game>/`. Always passes `?game=` so the
     server returns only that game's builds — without the param the server
-    defaults to D4 and stomps the local POE2/D3 files."""
+    defaults to D4 and stomps the other games' files."""
     import getpass
     import json as _json
     import os as _os
@@ -226,9 +226,14 @@ def cmd_use(name: str, config_path: Path, game: str) -> int:
     if load_build(name, builds_dir) is None:
         save_build(BuildConfig(name=name), builds_dir)
         print(f"created new empty {game} build '{name}'")
-    cfg.current_build = name
+    # Must go through set_active_build_for — assigning `cfg.current_build`
+    # only writes the legacy D4 field, and `active_build_for(game)` reads
+    # `current_build_by_game[game]` first for every game. So
+    # `use --game d3 Strafe` used to report success and change nothing:
+    # the daemon kept loading whatever D3 build was already pinned.
+    cfg.set_active_build_for(game, name)
     save_config(cfg, config_path)
-    print(f"active build set to '{name}'")
+    print(f"active {game} build set to '{name}'")
     print("(running daemon: switch via panel dropdown, or restart)")
     return 0
 
@@ -297,7 +302,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     run_parser.add_argument(
         "--game",
-        choices=("d4", "poe2", "d3"),
+        choices=("d4", "poe2", "poe1", "d3"),
         default="d4",
         help="active game — selects per-game profile cache, slot list, and detector defaults (default: d4)",
     )
@@ -312,7 +317,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     panel_parser.add_argument(
         "--game",
-        choices=("d4", "poe2", "d3"),
+        choices=("d4", "poe2", "poe1", "d3"),
         default=None,
         help="skip the game-select dialog and launch straight into this game's panel",
     )
@@ -327,7 +332,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     app_parser.add_argument(
         "--game",
-        choices=("d4", "poe2", "d3"),
+        choices=("d4", "poe2", "poe1", "d3"),
         default=None,
         help="skip the game-select dialog and launch straight into this game's panel",
     )
@@ -346,13 +351,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     builds_parser = sub.add_parser("builds", help="list builds for a game")
     builds_parser.add_argument(
-        "--game", default="d4", choices=("d4", "poe2", "d3"),
+        "--game", default="d4", choices=("d4", "poe2", "poe1", "d3"),
         help="which game's builds to list (default: d4)",
     )
     use_parser = sub.add_parser("use", help="switch active build (creates if missing)")
     use_parser.add_argument("name", help="build name")
     use_parser.add_argument(
-        "--game", default="d4", choices=("d4", "poe2", "d3"),
+        "--game", default="d4", choices=("d4", "poe2", "poe1", "d3"),
         help="which game's builds dir to write into (default: d4)",
     )
     cap_parser = sub.add_parser(
@@ -371,7 +376,7 @@ def main(argv: list[str] | None = None) -> int:
         help="optional: pre-select a build in the dropdown",
     )
     calib_parser.add_argument(
-        "--game", default="poe2", choices=("d4", "poe2", "d3"),
+        "--game", default="poe2", choices=("d4", "poe2", "poe1", "d3"),
         help="initial game to show (default: poe2)",
     )
     sync_parser = sub.add_parser(
@@ -381,7 +386,7 @@ def main(argv: list[str] | None = None) -> int:
     sync_parser.add_argument("--url", default=None)
     sync_parser.add_argument("--password", default=None)
     sync_parser.add_argument(
-        "--game", default="all", choices=("d4", "poe2", "d3", "all"),
+        "--game", default="all", choices=("d4", "poe2", "poe1", "d3", "all"),
         help="which game's builds to pull (default: all). 'all' pulls each game into its own subdir.",
     )
     sub.add_parser("watch", help="diag: live colors at each configured watcher pixel")
@@ -442,7 +447,7 @@ def main(argv: list[str] | None = None) -> int:
     if cmd == "calibrate-skills":
         return cmd_calibrate_skills(args.build, args.game)
     if cmd == "sync-builds":
-        games = ["d4", "poe2", "d3"] if args.game == "all" else [args.game]
+        games = ["d4", "poe2", "poe1", "d3"] if args.game == "all" else [args.game]
         return cmd_sync_builds(args.url, args.password, games)
     if cmd == "watch":
         return cmd_watch(args.config or default_config_path())

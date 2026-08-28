@@ -71,6 +71,10 @@ USER_AGENT = "linux:arpg-react-tips-refresh:1.0 (by /u/jbakerthrowaway)"
 ALLOWED_TOPICS = [
     "Paragon", "Pit", "Glyphs", "Gems", "Seasonal", "Class",
     "Atlas", "Currency", "Mapping", "Endgame", "General",
+    # POE1 additions. Crafting and Delve are POE1's signature systems with
+    # no D4/POE2/D3 equivalent; Leveling matters there because POE1 league
+    # starts are a race and the acts are long.
+    "Crafting", "Delve", "Leveling",
 ]
 
 # Sources per game. Reddit uses the JSON API (the .rss endpoint returns
@@ -84,6 +88,14 @@ SOURCES: dict[str, list[dict[str, str]]] = {
     "poe2": [
         {"kind": "rss", "label": "Path of Exile (official)", "url": "https://www.pathofexile.com/news/rss"},
         {"kind": "reddit", "label": "r/PathOfExile2", "subreddit": "PathOfExile2"},
+    ],
+    # POE1 — shares the official news RSS with POE2 (GGG publishes both
+    # games to one feed), so the per-game curation prompt is what keeps
+    # POE1 tips from drifting into POE2 territory. r/pathofexile is the
+    # unqualified name: it predates POE2 and was never renamed.
+    "poe1": [
+        {"kind": "rss", "label": "Path of Exile (official)", "url": "https://www.pathofexile.com/news/rss"},
+        {"kind": "reddit", "label": "r/pathofexile", "subreddit": "pathofexile"},
     ],
     # D3 — the game is in long-tail maintenance mode, so news velocity is
     # low. Wowhead is the most reliable feed; reddit catches any community
@@ -237,7 +249,9 @@ def fetch_candidates(game: str) -> list[Candidate]:
 
 # ----------------------------------------------------------- claude one-shot
 
-SYSTEM_PROMPT = """You are a curator maintaining a list of actionable strategy tips for an action-RPG companion app. The user plays Diablo 4 and Path of Exile 2 solo on PC and wants tips that give an edge during play — things not obvious from the in-game UI.
+SYSTEM_PROMPT = """You are a curator maintaining a list of actionable strategy tips for an action-RPG companion app. The user plays Diablo 4, Diablo 3, Path of Exile, and Path of Exile 2 solo on PC and wants tips that give an edge during play — things not obvious from the in-game UI.
+
+Path of Exile and Path of Exile 2 are SEPARATE games with different mechanics, and their news sources overlap. When curating for one of them, never emit a tip that describes the other. The game you are curating for is named explicitly below.
 
 Each run, you receive TWO inputs for a given game:
 - PRIOR TIPS: the existing curated list (typically 12-15 tips). These are already-vetted, high-signal tips.
@@ -362,6 +376,11 @@ def curate(
     game_name = {
         "d4": "Diablo 4",
         "poe2": "Path of Exile 2",
+        # Spelled out "(POE1, the original game — NOT Path of Exile 2)"
+        # because the shared official RSS feed carries POE2 items too;
+        # without the disambiguation the model curates POE2 tips into the
+        # POE1 file.
+        "poe1": "Path of Exile (POE1, the original game — NOT Path of Exile 2)",
         "d3": "Diablo 3",
     }[game]
     prior_tips = _load_prior_tips(game)
@@ -529,7 +548,7 @@ def notify(title: str, body: str, urgency: str = "normal") -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Curated-tips daily refresh")
-    parser.add_argument("--game", choices=["d4", "poe2", "d3", "all"], default="all")
+    parser.add_argument("--game", choices=["d4", "poe2", "poe1", "d3", "all"], default="all")
     parser.add_argument("--dry-run", action="store_true",
                         help="Fetch + curate, but don't touch JSON files")
     parser.add_argument("--dump-candidates", action="store_true",
@@ -542,7 +561,7 @@ def main(argv: list[str] | None = None) -> int:
         args.game, args.dry_run, args.dump_candidates,
     )
 
-    games = ["d4", "poe2", "d3"] if args.game == "all" else [args.game]
+    games = ["d4", "poe2", "poe1", "d3"] if args.game == "all" else [args.game]
 
     if args.dump_candidates:
         for game in games:

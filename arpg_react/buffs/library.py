@@ -87,7 +87,7 @@ class LibraryBuff:
 
     id: str
     label: str        # UI label for the entry
-    game: str         # "d3" | "poe2" | "d4"
+    game: str         # "d3" | "poe2" | "poe1" | "d4"
     elements: tuple[LibraryBuffElement, ...]
     # SAD tolerance calibrated for this entry's templates. CoE's six
     # icons share the dragon-ring shape and differ only by the central

@@ -44,6 +44,13 @@ _MOUSE_TOKENS = {
     "mmb": "middle","middle": "middle",
 }
 
+# The two values `_resolve()` can return as its `kind`. Named constants
+# rather than bare strings because a typo'd comparison against a literal
+# is silently false rather than an error — that exact mistake ("keyboard"
+# vs "key") disabled the ydotool keyboard path for a full release.
+KIND_KEY = "key"
+KIND_MOUSE = "mouse"
+
 # Mouse-button index for ydotool's `click` opcode. ORed with 0x40 for
 # down and 0x80 for up; 0xC0 = down+up. See `ydotool click --help`.
 _YDOTOOL_BUTTON_INDEX = {"left": 0x00, "right": 0x01, "middle": 0x02}
@@ -59,6 +66,29 @@ _YDOTOOL_MODIFIER_KEYCODE = {
     "alt":     56,    # KEY_LEFTALT
     "super":  125,    # KEY_LEFTMETA
     "meta":   125,
+}
+
+# Linux input-event keycodes for the keyboard tokens any current build
+# resolves to. Routing keyboard presses through ydotool (uinput) instead
+# of pynput (XTest) matters on Wayland: COSMIC + Hyprland both forward
+# XTest *mouse* events to XWayland clients but drop *keyboard* events
+# unless the game is the focused X client — which it almost never is
+# when the panel has focus or the game is a native Wayland window via
+# Proton-GE/wine-wayland. uinput sits below the compositor, so events
+# land in the focused window regardless of who's drawing it.
+_YDOTOOL_KEY_CODE = {
+    "1": 2, "2": 3, "3": 4, "4": 5, "5": 6,
+    "6": 7, "7": 8, "8": 9, "9": 10, "0": 11,
+    "q": 16, "w": 17, "e": 18, "r": 19, "t": 20,
+    "y": 21, "u": 22, "i": 23, "o": 24, "p": 25,
+    "a": 30, "s": 31, "d": 32, "f": 33, "g": 34,
+    "h": 35, "j": 36, "k": 37, "l": 38,
+    "z": 44, "x": 45, "c": 46, "v": 47, "b": 48,
+    "n": 49, "m": 50,
+    "tab": 15, "enter": 28, "return": 28, "esc": 1, "escape": 1,
+    "space": 57, "backspace": 14,
+    "f1": 59, "f2": 60, "f3": 61, "f4": 62, "f5": 63, "f6": 64,
+    "f7": 65, "f8": 66, "f9": 67, "f10": 68, "f11": 87, "f12": 88,
 }
 
 
@@ -163,13 +193,13 @@ class InputController:
         if mapped:
             mb = _MOUSE_TOKENS.get(mapped.lower())
             if mb:
-                return "mouse", mb
-            return "key", mapped
+                return KIND_MOUSE, mb
+            return KIND_KEY, mapped
         # No keymap — preserve historical behavior. L/R always meant mouse;
         # numeric/letter slots typed their own value as a keyboard char.
         if hotkey in (HotkeyKind.L, HotkeyKind.R):
-            return "mouse", "left" if hotkey is HotkeyKind.L else "right"
-        return "key", hotkey.value
+            return KIND_MOUSE, "left" if hotkey is HotkeyKind.L else "right"
+        return KIND_KEY, hotkey.value
 
     def _ensure_initialized(self) -> bool:
         if self._init_failed:
@@ -224,13 +254,35 @@ class InputController:
         try:
             if delay_ms:
                 time.sleep(delay_ms / 1000.0)
-            # Route mouse presses through ydotool (uinput) when available
-            # — pynput's XTest path gets eaten by Wayland compositors for
-            # button events. When we use ydotool for the click, we must
-            # also inject the held modifiers through ydotool so the game
-            # sees both events on the same input layer.
-            if kind == "mouse" and self._ydotool_path is not None:
+            # Route both mouse AND keyboard presses through ydotool (uinput)
+            # when available. On Wayland, pynput's XTest path silently drops
+            # mouse button events for native-Wayland game windows and also
+            # drops keyboard events whenever the game isn't the focused X
+            # client. uinput sits below the compositor, so events reach the
+            # focused window regardless of toolkit. Held modifiers go through
+            # the same backend so the game sees press + modifiers on one
+            # input layer. Unmapped keyboard tokens (anything not in
+            # _YDOTOOL_KEY_CODE) fall back to pynput so esoteric named keys
+            # still work where pynput can handle them.
+            # NB: `kind` is KIND_KEY / KIND_MOUSE — _resolve never returns
+            # the string "keyboard". This condition read `kind ==
+            # "keyboard"` until 2026-07-26, which is never true, so every
+            # keyboard press silently fell through to the pynput/XTest
+            # branch while mouse presses went out over uinput. Splitting
+            # the two backends that way is worse than either one alone:
+            # XTest keyboard injection resyncs the X pointer, which drops
+            # a physically-held mouse button (POE1 hold-LMB-to-move gets
+            # cancelled every time a skill fires).
+            use_ydotool_key = (
+                kind == KIND_KEY
+                and self._ydotool_path is not None
+                and token.lower() in _YDOTOOL_KEY_CODE
+            )
+            if kind == KIND_MOUSE and self._ydotool_path is not None:
                 self._press_mouse_ydotool(token, mods, hold_ms)
+                backend = "ydotool"
+            elif use_ydotool_key:
+                self._press_key_ydotool(token, mods, hold_ms)
                 backend = "ydotool"
             else:
                 self._press_pynput(kind, token, mods, hold_ms)
@@ -264,7 +316,7 @@ class InputController:
             self._kbd.press(mod_key)
             held.append(mod_key)
         try:
-            if kind == "mouse":
+            if kind == KIND_MOUSE:
                 btn_attr = token  # "left" / "right" / "middle"
                 button = getattr(self._mouse_button_class, btn_attr)
                 self._mouse.press(button)
@@ -322,6 +374,38 @@ class InputController:
             for code in reversed(held_codes):
                 try:
                     self._ydotool_run(["key", f"{code}:0"])
+                except Exception:  # noqa: BLE001
+                    pass
+
+    def _press_key_ydotool(
+        self, token: str, mods: tuple[str, ...], hold_ms: int,
+    ) -> None:
+        """ydotool-backed keyboard press. Mirrors the mouse path: hold
+        any per-slot modifiers via separate ydotool key invocations so
+        they straddle the keydown/keyup pair on the same input layer."""
+        code = _YDOTOOL_KEY_CODE.get(token.lower())
+        if code is None:
+            log.warning("ydotool: no keycode for keyboard token %r — skipping", token)
+            return
+        held_codes: list[int] = []
+        for mod_name in mods:
+            mod_code = _YDOTOOL_MODIFIER_KEYCODE.get(mod_name.lower())
+            if mod_code is None:
+                log.warning(
+                    "ydotool: no keycode mapping for modifier %r — skipping it",
+                    mod_name,
+                )
+                continue
+            self._ydotool_run(["key", f"{mod_code}:1"])
+            held_codes.append(mod_code)
+        try:
+            self._ydotool_run(["key", f"{code}:1"])
+            time.sleep(hold_ms / 1000.0)
+            self._ydotool_run(["key", f"{code}:0"])
+        finally:
+            for mod_code in reversed(held_codes):
+                try:
+                    self._ydotool_run(["key", f"{mod_code}:0"])
                 except Exception:  # noqa: BLE001
                     pass
 

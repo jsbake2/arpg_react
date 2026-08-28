@@ -309,6 +309,13 @@ class Detector:
         self.cfg = config or DETECTOR_DEFAULTS
         self._grab_fn = grab_fn or self._default_grab
         self._px = None  # PIL PixelAccess — refreshed each detect()
+        # Desktop offset of the game window. Every coordinate in `cfg` is
+        # relative to the game's own top-left, so on a multi-monitor
+        # desktop the grab has to be shifted by wherever the window
+        # actually is — otherwise a game on the second monitor samples
+        # the first one. The daemon updates this each tick from the
+        # window locator; (0,0) reproduces the original behavior.
+        self.origin: tuple[int, int] = (0, 0)
         # Templates are instance attrs so the daemon can swap in resolution-
         # scaled versions. Lazy-import default refs to keep this module light.
         if boss_ref is None or mount_ref is None:
@@ -365,7 +372,12 @@ class Detector:
 
     def detect(self) -> DetectorReading:
         try:
-            img = self._grab_fn(self.cfg.grab_bbox)
+            # Only the grab is shifted — `_grab_local` keeps translating
+            # coordinates relative to cfg.grab_bbox, so every downstream
+            # probe is unchanged.
+            ox, oy = self.origin
+            x1, y1, x2, y2 = self.cfg.grab_bbox
+            img = self._grab_fn((x1 + ox, y1 + oy, x2 + ox, y2 + oy))
             # `img.load()` returns a fast PixelAccess object — calls take
             # ~50ns vs ~500ns for img.getpixel(). With ~5k pixel reads per
             # tick across all probes, this saves a couple of ms per tick.

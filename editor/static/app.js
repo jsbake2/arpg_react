@@ -7,7 +7,7 @@
 // hand-crafted /editor URLs without a game still work.
 const GAME = (() => {
   const g = new URLSearchParams(window.location.search).get("game") || "d4";
-  return ["d4", "poe2", "d3"].includes(g) ? g : "d4";
+  return ["d4", "poe2", "poe1", "d3"].includes(g) ? g : "d4";
 })();
 
 // Slot set per game — determines what shows up in the Skills tab and
@@ -19,6 +19,12 @@ const HOTKEYS_BY_GAME = {
   // movement keys (D3 is click-to-move), so MOVEMENT_* conditions are
   // filtered out of COND_TYPES for this game further down.
   d3:   ["1", "2", "3", "4", "L", "R", "Q"],
+  // POE1 — mouse + the Q/W/E/R/T skill bar, then the five utility flasks
+  // on the number row. Also click-to-move, so it gets the same
+  // MOVEMENT_* filter as D3. Note W is a skill slot here, not a movement
+  // key — that's only consistent because movement gating is off.
+  poe1: ["LMB", "MMB", "RMB", "Q", "W", "E", "R", "T",
+         "1", "2", "3", "4", "5"],
 };
 const HOTKEYS = HOTKEYS_BY_GAME[GAME] || HOTKEYS_BY_GAME.d4;
 
@@ -86,6 +92,46 @@ const CLASSES_BY_GAME = {
       { value: "druid_shaman", label: "Shaman" },
     ]},
   ],
+  // POE1 — seven base classes, each with three ascendancies except Scion,
+  // which has the single Ascendant. Same base->ascendancy shape as POE2.
+  // Ranger/Deadeye and Ranger/Pathfinder deliberately share their value
+  // strings with POE2's: same class, same ascendancy name, and values are
+  // already scoped per game by the build's `game` column.
+  poe1: [
+    { base: "marauder", label: "Marauder", ascendancies: [
+      { value: "marauder_juggernaut", label: "Juggernaut" },
+      { value: "marauder_berserker",  label: "Berserker" },
+      { value: "marauder_chieftain",  label: "Chieftain" },
+    ]},
+    { base: "duelist",  label: "Duelist",  ascendancies: [
+      { value: "duelist_slayer",     label: "Slayer" },
+      { value: "duelist_gladiator",  label: "Gladiator" },
+      { value: "duelist_champion",   label: "Champion" },
+    ]},
+    { base: "ranger",   label: "Ranger",   ascendancies: [
+      { value: "ranger_deadeye",    label: "Deadeye" },
+      { value: "ranger_raider",     label: "Raider" },
+      { value: "ranger_pathfinder", label: "Pathfinder" },
+    ]},
+    { base: "shadow",   label: "Shadow",   ascendancies: [
+      { value: "shadow_assassin",  label: "Assassin" },
+      { value: "shadow_saboteur",  label: "Saboteur" },
+      { value: "shadow_trickster", label: "Trickster" },
+    ]},
+    { base: "witch",    label: "Witch",    ascendancies: [
+      { value: "witch_necromancer",  label: "Necromancer" },
+      { value: "witch_occultist",    label: "Occultist" },
+      { value: "witch_elementalist", label: "Elementalist" },
+    ]},
+    { base: "templar",  label: "Templar",  ascendancies: [
+      { value: "templar_inquisitor", label: "Inquisitor" },
+      { value: "templar_hierophant", label: "Hierophant" },
+      { value: "templar_guardian",   label: "Guardian" },
+    ]},
+    { base: "scion",    label: "Scion",    ascendancies: [
+      { value: "scion_ascendant", label: "Ascendant" },
+    ]},
+  ],
 };
 
 function populateClassDropdown() {
@@ -127,8 +173,12 @@ const CAST_TYPES = [
   { id: "CAST_X_AND_WAIT", label: "Cast X times + wait for green clear" },
 ];
 
-// D3 is point/click — there are no W/A/S/D movement keys to gate on, so
-// MOVEMENT_* conditions are filtered out for that game.
+// D3 and POE1 are point/click — there are no W/A/S/D movement keys to
+// gate on, so MOVEMENT_* conditions are filtered out for those games.
+// (POE1 does have an optional WASD scheme in recent leagues; if the user
+// switches to it, drop poe1 from CLICK_TO_MOVE_GAMES here and add the
+// matching movement monitor wiring on the daemon side.)
+const CLICK_TO_MOVE_GAMES = ["d3", "poe1"];
 const COND_TYPES = (() => {
   const all = [
     { id: "HEALTH_BELOW", label: "health below %" },
@@ -150,7 +200,7 @@ const COND_TYPES = (() => {
     // a global listener at build-load time.
     { id: "HOTKEY_PRESSED", label: "hotkey pressed (manual trigger)" },
   ];
-  if (GAME === "d3") {
+  if (CLICK_TO_MOVE_GAMES.includes(GAME)) {
     return all.filter(c => !c.id.startsWith("MOVEMENT_"));
   }
   return all;
@@ -1312,10 +1362,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     await refreshBuildList();
     if (buildList.length === 0) {
-      // D3 has no real builds yet — seed an empty "placeholder" so the
+      // Games with no real builds yet seed an empty "placeholder" so the
       // editor renders something the user can rename when they start
-      // their first real D3 build. D4/POE2 keep the historical seed name.
-      const seedName = GAME === "d3" ? "placeholder" : "untitled_build";
+      // their first build. D4/POE2 keep the historical seed name.
+      const seedName = ["d3", "poe1"].includes(GAME) ? "placeholder" : "untitled_build";
       const seed = emptyBuild(seedName);
       await API.put(seed.name, seed);
       await refreshBuildList();

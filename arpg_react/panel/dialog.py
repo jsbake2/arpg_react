@@ -1,6 +1,6 @@
 """Game-select dialog shown before the main panel opens.
 
-Three large clickable tiles (D4 / POE2 / D3) — the choice determines
+Four large clickable tiles (D3 / D4 / POE1 / POE2) — the choice determines
 which panel layout + theme runs. Returning None means the user closed
 the dialog without picking, in which case the caller should exit cleanly.
 """
@@ -70,6 +70,21 @@ QPushButton#tilePoe2:hover {
         stop:0 #1c7593, stop:0.55 #114a64, stop:1 #093547);
 }
 
+/* POE1 tile — vaal (toxic corruption green). Deliberately not a shade of
+   POE2's azurite: the two Path of Exile tiles sit side by side, so they
+   need to differ in hue, not just brightness. */
+QPushButton#tilePoe1 {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+        stop:0 #1f6b3a, stop:0.55 #0d3d22, stop:1 #06200f);
+    border: 1px solid #2a7d47;
+    color: #ddf6e6;
+}
+QPushButton#tilePoe1:hover {
+    border: 1px solid #57e08a;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+        stop:0 #268046, stop:0.55 #114a2a, stop:1 #082817);
+}
+
 /* D3 tile — cinder (deep burnt orange). Hotter and more saturated than
    the D4 gold so the two diablos read distinct at a glance. */
 QPushButton#tileD3 {
@@ -87,14 +102,17 @@ QPushButton#tileD3:hover {
 
 
 class GameSelectDialog(QtWidgets.QDialog):
-    """Modal dialog: pick D4 or POE2. `selected_game` is set on accept."""
+    """Modal dialog: pick a game. `selected_game` is set on accept."""
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("gameSelect")
         self.setWindowTitle("ARPG React")
         self.setModal(True)
-        self.setFixedSize(780, 380)
+        # Width fits 4 tiles: 4 × 200 min-width + 3 × 20 spacing + 2 × 28
+        # margins = 916, rounded up for breathing room. Bump this again
+        # if a fifth game ever lands.
+        self.setFixedSize(960, 380)
         self.setStyleSheet(_DIALOG_CSS)
         self.selected_game: str | None = None
 
@@ -117,17 +135,26 @@ class GameSelectDialog(QtWidgets.QDialog):
         self.btn_poe2.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         self.btn_poe2.clicked.connect(lambda: self._pick("poe2"))
 
+        self.btn_poe1 = QtWidgets.QPushButton("PATH OF EXILE")
+        self.btn_poe1.setObjectName("tilePoe1")
+        self.btn_poe1.setProperty("gameTile", True)
+        self.btn_poe1.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        self.btn_poe1.clicked.connect(lambda: self._pick("poe1"))
+
         self.btn_d3 = QtWidgets.QPushButton("DIABLO III")
         self.btn_d3.setObjectName("tileD3")
         self.btn_d3.setProperty("gameTile", True)
         self.btn_d3.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
         self.btn_d3.clicked.connect(lambda: self._pick("d3"))
 
+        # Diablos on the left, Path of Exiles on the right, each pair in
+        # release order.
         tiles = QtWidgets.QHBoxLayout()
         tiles.setContentsMargins(28, 0, 28, 28)
         tiles.setSpacing(20)
         tiles.addWidget(self.btn_d3)
         tiles.addWidget(self.btn_d4)
+        tiles.addWidget(self.btn_poe1)
         tiles.addWidget(self.btn_poe2)
 
         layout = QtWidgets.QVBoxLayout(self)

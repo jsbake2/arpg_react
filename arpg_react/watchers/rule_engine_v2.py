@@ -260,6 +260,15 @@ class RuleEngineV2:
 
         self._enabled = True
         self._sampling_disabled = False
+        # External gate set by the daemon based on GameContext (chat open,
+        # menu/town/mounted, modal panels, etc.). Distinct from `_enabled`
+        # — the user's F7 toggle is intent ("auto-cast on"); this flag is
+        # "the game itself can't receive presses right now". When set, the
+        # engine MUST NOT advance rule cooldowns: a rule firing without
+        # an actual press would silently consume its cooldown window,
+        # leaving long-cooldown builds (e.g. D3 Magic Weapon, 550s) dead
+        # for nine minutes after a single mis-detected paused tick.
+        self._input_suppressed = False
         self._last_diag_at: datetime | None = None
 
         # Per-tick freshly computed
@@ -308,12 +317,29 @@ class RuleEngineV2:
             return
         self._enabled = on
         log.info("engine %s", "ENABLED" if on else "DISABLED")
+        if on:
+            # Fresh-start semantics: stop + start the WATCHER toggle must
+            # reset rule cooldowns + pending chain queue. Without this, a
+            # rule that already fired earlier in the daemon's lifetime is
+            # still on its cooldown clock — for long-cooldown buff refresh
+            # rules (e.g. Magic Weapon at 550s) toggling off/on would do
+            # nothing for nine minutes. User intent on enable is "go now."
+            self._reset_runtime_state()
+
+    def set_input_suppressed(self, on: bool) -> None:
+        if self._input_suppressed == on:
+            return
+        self._input_suppressed = on
+        log.info("engine input %s", "SUPPRESSED" if on else "ALLOWED")
 
     def replace_build(self, build: BuildV2) -> None:
         self._build = build
-        self._runtimes = {i: RuleRuntime() for i in range(len(build.rules))}
-        self._pending.clear()
+        self._reset_runtime_state()
         self._log_build_summary()
+
+    def _reset_runtime_state(self) -> None:
+        self._runtimes = {i: RuleRuntime() for i in range(len(self._build.rules))}
+        self._pending.clear()
 
     def _maybe_log_diagnostic_snapshot(self, now: datetime) -> None:
         """Once every ~3 seconds while the engine is running, dump a one-line
@@ -448,6 +474,13 @@ class RuleEngineV2:
         if not self._enabled or self._sampling_disabled:
             return 0
         self._maybe_log_diagnostic_snapshot(now)
+        # Bail before rule eval when input is suppressed so a paused/menu
+        # tick can't silently burn a rule's cooldown window. Pending chain
+        # entries also stay in the heap untouched — they'll drain on the
+        # next unsuppressed tick. (Long bursts can stack while suppressed;
+        # not addressed here because real pauses last seconds, not minutes.)
+        if self._input_suppressed:
+            return 0
         # Test path: a `_sampler` was injected — use the legacy per-pixel
         # sampling so existing rule_engine tests don't need to be rewritten.
         # Production path: state is already populated by `apply_detector_reading`.
@@ -470,14 +503,49 @@ class RuleEngineV2:
 
         fired = 0
         # 2) drain pending chain fires
+        # Two invariants every drained step must satisfy:
+        #   (a) input-latency floor — every press waits at least the
+        #       originating rule's `press_delay_ms` before firing, so the
+        #       game registers the keypress reliably (the floor still
+        #       comes from the heap entry).
+        #   (b) inter-step gap — consecutive presses in one chain stay
+        #       spaced by the originally scheduled wall-clock gap, even
+        #       when the daemon's TICK_SECONDS=0.25 polling drains them
+        #       all in the same tick. Without this the LON Meteor combo
+        #       (target 2, steps 3 and 4 at 80ms each) collapsed to "2,
+        #       then 3+4 simultaneously" because both heap entries kept
+        #       the same flat press_delay_ms.
+        # We carry the previous popped entry's scheduled time + actual
+        # delay so the next entry's delay = prev_delay + max(floor, gap).
+        prev_scheduled_fire_at: datetime | None = None
+        prev_actual_delay_ms = 0
         while self._pending and self._pending[0][0] <= now:
-            _, _, target, depth, conds, press_delay_ms, hold_ms = heappop(self._pending)
+            fire_at, _, target, depth, conds, original_press_delay_ms, hold_ms = (
+                heappop(self._pending)
+            )
+            delay_until_fire_at = max(
+                0, int((fire_at - now).total_seconds() * 1000)
+            )
+            if prev_scheduled_fire_at is None:
+                actual_delay_ms = max(original_press_delay_ms, delay_until_fire_at)
+            else:
+                gap_ms = max(
+                    0, int((fire_at - prev_scheduled_fire_at).total_seconds() * 1000)
+                )
+                actual_delay_ms = prev_actual_delay_ms + max(
+                    original_press_delay_ms, gap_ms
+                )
+            # Update the timeline trackers even when the step skips on a
+            # failed condition — the *next* step still has to respect the
+            # original gap from this scheduled slot.
+            prev_scheduled_fire_at = fire_at
+            prev_actual_delay_ms = actual_delay_ms
             if conds and not all_conditions_met(conds, ctx):
                 log.debug("chain step %s skipped (conditions failed)", target.value)
                 continue
             self._press(
                 target, now, depth=depth, source="chain",
-                press_delay_ms=press_delay_ms, hold_ms=hold_ms,
+                press_delay_ms=actual_delay_ms, hold_ms=hold_ms,
             )
             fired += 1
 
